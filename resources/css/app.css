@@ -1,0 +1,72 @@
+@import 'tailwindcss';
+
+@source '../../vendor/laravel/framework/src/Illuminate/Pagination/resources/views/*.blade.php';
+@source '../../storage/framework/views/*.php';
+@source '../**/*.blade.php';
+@source '../**/*.js';
+
+@theme {
+    --font-sans: 'Plus Jakarta Sans', ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji',
+        'Segoe UI Symbol', 'Noto Color Emoji';
+    --font-heading: 'Outfit', ui-sans-serif, system-ui, sans-serif;
+
+    --animate-shimmer: shimmer 2s linear infinite;
+    --animate-fade-in-up: fadeInUp 0.5s ease-out forwards;
+
+    --ease-out-expo: cubic-bezier(0.19, 1, 0.22, 1);
+
+    @keyframes shimmer {
+        from { transform: translateX(-100%); }
+        to { transform: translateX(100%); }
+    }
+
+    @keyframes fadeInUp {
+        from {
+            opacity: 0;
+            transform: translateY(10px);
+        }
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    }
+}
+
+/* Theme tokens (light default). Use `.dark` on <html> to enable dark mode. */
+:root {
+    color-scheme: light;
+
+    --ui-bg: #f6f8fc;
+    --ui-bg-2: #eef2ff;
+    --ui-surface: rgba(255, 255, 255, 0.75);
+    --ui-surface-strong: rgba(255, 255, 255, 0.92);
+    --ui-surface-2: rgba(248, 250, 252, 0.9);
+    --ui-border: rgba(15, 23, 42, 0.10);
+    --ui-fg: #0f172a;
+    --ui-muted: rgba(15, 23, 42, 0.65);
+    --ui-muted-2: rgba(15, 23, 42, 0.50);
+    --ui-hover: rgba(15, 23, 42, 0.04);
+    --ui-overlay: rgba(15, 23, 42, 0.55);
+}
+
+html.dark {
+    color-scheme: dark;
+
+    --ui-bg: #020205;
+    --ui-bg-2: #050510;
+    --ui-surface: rgba(255, 255, 255, 0.03);
+    --ui-surface-strong: rgba(10, 10, 18, 0.92);
+    --ui-surface-2: rgba(21, 21, 32, 0.92);
+    --ui-border: rgba(255, 255, 255, 0.10);
+    --ui-fg: #e5e7eb;
+    --ui-muted: rgba(229, 231, 235, 0.70);
+    --ui-muted-2: rgba(229, 231, 235, 0.50);
+    --ui-hover: rgba(255, 255, 255, 0.05);
+    --ui-overlay: rgba(0, 0, 0, 0.70);
+}
+
+html,
+body {
+    background: var(--ui-bg);
+    color: var(--ui-fg);
+}
