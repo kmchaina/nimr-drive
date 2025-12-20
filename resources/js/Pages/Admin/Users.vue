@@ -188,7 +188,9 @@
 
 <script setup>
 import { ref, computed } from 'vue';
-import axios from 'axios';
+
+// Use the globally configured axios with CSRF token from bootstrap.js
+const axios = window.axios;
 import ThemeToggle from '../../Components/ThemeToggle.vue';
 
 const props = defineProps({

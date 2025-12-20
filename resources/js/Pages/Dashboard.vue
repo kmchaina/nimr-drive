@@ -677,7 +677,9 @@
 <script setup>
 import { router } from '@inertiajs/vue3';
 import { ref, onMounted, computed } from 'vue';
-import axios from 'axios';
+
+// Use the globally configured axios with CSRF token from bootstrap.js
+const axios = window.axios;
 import FileList from '../Components/FileList.vue';
 import Breadcrumbs from '../Components/Breadcrumbs.vue';
 import FileUpload from '../Components/FileUpload.vue';

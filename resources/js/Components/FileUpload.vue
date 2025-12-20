@@ -222,7 +222,9 @@
 
 <script setup>
 import { ref, computed, watch } from 'vue';
-import axios from 'axios';
+
+// Use the globally configured axios with CSRF token from bootstrap.js
+const axios = window.axios;
 import ConfirmModal from './ConfirmModal.vue';
 
 const props = defineProps({
