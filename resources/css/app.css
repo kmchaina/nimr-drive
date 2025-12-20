@@ -47,6 +47,7 @@
     --ui-muted-2: rgba(15, 23, 42, 0.50);
     --ui-hover: rgba(15, 23, 42, 0.04);
     --ui-overlay: rgba(15, 23, 42, 0.55);
+    --grid-color: rgba(15, 23, 42, 0.03);
 }
 
 html.dark {
@@ -63,6 +64,7 @@ html.dark {
     --ui-muted-2: rgba(229, 231, 235, 0.50);
     --ui-hover: rgba(255, 255, 255, 0.05);
     --ui-overlay: rgba(0, 0, 0, 0.70);
+    --grid-color: rgba(255, 255, 255, 0.03);
 }
 
 html,
