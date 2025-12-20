@@ -73,9 +73,8 @@
                     </div>
                 </div>
 
-                <div class="hidden lg:flex items-center justify-between text-sm text-slate-600 dark:text-gray-400">
-                    <span>© {{ new Date().getFullYear() }} National Institute for Medical Research</span>
-                    <span>IT Department</span>
+                <div class="hidden lg:flex items-center justify-center text-sm text-slate-600 dark:text-gray-400">
+                    <span>© {{ new Date().getFullYear() }} NIMR Drive</span>
                 </div>
             </div>
 
