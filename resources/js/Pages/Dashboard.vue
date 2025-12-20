@@ -248,6 +248,18 @@
                         />
                         
                         <div class="flex items-center space-x-3 ml-4">
+                            <!-- Refresh Files Button -->
+                            <button
+                                @click="refreshFiles"
+                                :disabled="loading"
+                                class="inline-flex items-center px-3 py-2 bg-[color:var(--ui-surface)] border border-[color:var(--ui-border)] rounded-xl text-sm font-medium text-[color:var(--ui-muted)] hover:text-[color:var(--ui-fg)] hover:bg-[color:var(--ui-hover)] transition-all duration-300 disabled:opacity-50"
+                                title="Refresh files"
+                            >
+                                <svg :class="['w-4 h-4', loading ? 'animate-spin' : '']" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
+                                </svg>
+                            </button>
+
                             <transition enter-active-class="transition ease-out duration-200" enter-from-class="opacity-0 translate-y-2" enter-to-class="opacity-100 translate-y-0" leave-active-class="transition ease-in duration-150" leave-from-class="opacity-100 translate-y-0" leave-to-class="opacity-0 translate-y-2">
                                 <button
                                     v-if="selectedFiles.length > 0"
@@ -849,6 +861,10 @@ const loadFiles = async (path = '') => {
     } finally {
         loading.value = false;
     }
+};
+
+const refreshFiles = () => {
+    loadFiles(currentPath.value);
 };
 
 const navigateToPath = (path) => {
