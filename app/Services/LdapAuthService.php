@@ -45,15 +45,23 @@ class LdapAuthService
     {
         // For development/testing without LDAP extension
         if (!extension_loaded('ldap')) {
+            Log::info('LDAP extension not loaded, using mock authentication');
             return $this->mockAuthentication($username, $password);
         }
+
+        Log::info("LDAP auth attempt for user: {$username}");
 
         try {
             // Connect to LDAP server
             if (!$this->connect()) {
-                Log::error('LDAP connection failed');
+                Log::error('LDAP connection failed', [
+                    'host' => $this->ldapHost,
+                    'port' => $this->ldapPort,
+                ]);
                 return null;
             }
+
+            Log::info('LDAP connection successful');
 
             // Authenticate user (two strategies):
             // 1) If a service bind is configured: search DN -> bind as user DN
@@ -61,6 +69,7 @@ class LdapAuthService
             $userDn = null;
 
             if ($this->ldapBindDn && $this->ldapBindPassword) {
+                Log::info('Using service account bind strategy');
                 $userDn = $this->findUserDn($username);
                 if (!$userDn) {
                     Log::warning("User not found in AD: {$username}");
@@ -68,19 +77,60 @@ class LdapAuthService
                 }
 
                 if (!@ldap_bind($this->ldapConnection, $userDn, $password)) {
-                    Log::warning("Authentication failed for user: {$username}");
+                    Log::warning("Authentication failed for user: {$username}", [
+                        'ldap_error' => ldap_error($this->ldapConnection),
+                    ]);
                     return null;
                 }
             } else {
                 $upn = $this->buildUpn($username);
-                if (!$upn) {
-                    Log::error('LDAP bind_dn not configured and LDAP_ACCOUNT_SUFFIX is empty. Cannot perform user bind.');
-                    return null;
+                $bindSuccess = false;
+
+                // Try UPN format first (user@domain.local)
+                if ($upn) {
+                    Log::info("Attempting UPN bind", ['upn' => $upn]);
+                    if (@ldap_bind($this->ldapConnection, $upn, $password)) {
+                        Log::info('UPN bind successful');
+                        $bindSuccess = true;
+                    } else {
+                        Log::info("UPN bind failed, will try other formats", [
+                            'upn' => $upn,
+                            'ldap_error' => ldap_error($this->ldapConnection),
+                        ]);
+                    }
                 }
 
-                if (!@ldap_bind($this->ldapConnection, $upn, $password)) {
-                    Log::warning("Authentication failed for user (UPN bind): {$username}");
-                    return null;
+                // Try DOMAIN\username format (NetBIOS)
+                if (!$bindSuccess) {
+                    // Extract NetBIOS domain from account suffix or base DN
+                    $netbiosDomain = $this->getNetBiosDomain();
+                    if ($netbiosDomain) {
+                        $downLevelName = "{$netbiosDomain}\\{$username}";
+                        Log::info("Attempting down-level logon name bind", ['name' => $downLevelName]);
+                        if (@ldap_bind($this->ldapConnection, $downLevelName, $password)) {
+                            Log::info('Down-level logon name bind successful');
+                            $bindSuccess = true;
+                        } else {
+                            Log::info("Down-level bind failed", [
+                                'name' => $downLevelName,
+                                'ldap_error' => ldap_error($this->ldapConnection),
+                            ]);
+                        }
+                    }
+                }
+
+                // Try just username (some AD configs allow this)
+                if (!$bindSuccess) {
+                    Log::info("Attempting simple username bind", ['username' => $username]);
+                    if (@ldap_bind($this->ldapConnection, $username, $password)) {
+                        Log::info('Simple username bind successful');
+                        $bindSuccess = true;
+                    } else {
+                        Log::warning("All bind attempts failed for user: {$username}", [
+                            'ldap_error' => ldap_error($this->ldapConnection),
+                        ]);
+                        return null;
+                    }
                 }
 
                 // Find DN after successful bind (for group checks, etc.)
@@ -90,9 +140,14 @@ class LdapAuthService
             // Get user information from AD
             $userInfo = $this->getUserInfo($username);
             if (!$userInfo) {
-                Log::error("Failed to retrieve user info for: {$username}");
+                Log::error("Failed to retrieve user info for: {$username}", [
+                    'ldap_error' => ldap_error($this->ldapConnection),
+                    'base_dn' => $this->ldapBaseDn,
+                ]);
                 return null;
             }
+
+            Log::info('User info retrieved', ['userInfo' => $userInfo]);
 
             // Optional: restrict access to members of certain groups
             if (!empty($this->allowedGroupDns)) {
@@ -106,7 +161,9 @@ class LdapAuthService
             return $this->createOrUpdateUser($userInfo);
 
         } catch (\Exception $e) {
-            Log::error('LDAP authentication error: ' . $e->getMessage());
+            Log::error('LDAP authentication error: ' . $e->getMessage(), [
+                'exception' => $e,
+            ]);
             return null;
         } finally {
             $this->disconnect();
@@ -220,6 +277,29 @@ class LdapAuthService
         return $username . '@' . $suffix;
     }
 
+    /**
+     * Extract NetBIOS domain name from account suffix or base DN
+     */
+    private function getNetBiosDomain(): ?string
+    {
+        // Try to get from account suffix (e.g., @nimrhqs.local -> NIMRHQS)
+        $suffix = (string) $this->ldapAccountSuffix;
+        if ($suffix !== '') {
+            $suffix = ltrim($suffix, '@');
+            $parts = explode('.', $suffix);
+            if (!empty($parts[0])) {
+                return strtoupper($parts[0]);
+            }
+        }
+
+        // Try to get from base DN (e.g., dc=nimrhqs,dc=local -> NIMRHQS)
+        if (preg_match('/dc=([^,]+)/i', $this->ldapBaseDn, $matches)) {
+            return strtoupper($matches[1]);
+        }
+
+        return null;
+    }
+
     private function escapeFilterValue(string $value): string
     {
         if (function_exists('ldap_escape')) {
@@ -300,7 +380,7 @@ class LdapAuthService
             // Create new user
             $user = User::create([
                 'name' => $userInfo['name'],
-                'email' => $userInfo['email'] ?? $userInfo['username'] . '@domain.local',
+                'email' => $userInfo['email'] ?? $userInfo['username'] . '@nimrhqs.local',
                 'ad_username' => $userInfo['username'],
                 'ad_guid' => $userInfo['guid'],
                 'display_name' => $userInfo['display_name'],

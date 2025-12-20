@@ -37,7 +37,7 @@
                                     {{ user.display_name || user.name }}
                                 </div>
                                 <div class="mt-1 text-sm text-[color:var(--ui-muted)]">
-                                    @{{ user.ad_username }}
+                                    {{ user.ad_username }}
                                 </div>
                             </div>
                         </div>

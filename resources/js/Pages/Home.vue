@@ -13,12 +13,7 @@
             <div class="lg:w-[55%] flex flex-col justify-between p-8 lg:p-16">
                 <div class="flex items-center gap-4">
                     <div class="relative">
-                        <div class="absolute -inset-2 bg-gradient-to-r from-indigo-500 to-blue-500 rounded-2xl blur-lg opacity-30"></div>
-                        <div class="relative w-14 h-14 rounded-2xl bg-gradient-to-br from-indigo-500 via-blue-500 to-cyan-400 flex items-center justify-center shadow-2xl shadow-indigo-500/30">
-                            <svg class="w-7 h-7 text-white" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" d="M2.25 15a4.5 4.5 0 004.5 4.5H18a3.75 3.75 0 001.332-7.257 3 3 0 00-3.758-3.848 5.25 5.25 0 00-10.233 2.33A4.502 4.502 0 002.25 15z"/>
-                            </svg>
-                        </div>
+                        <img src="/images/logos/NIMR.png" alt="NIMR Logo" class="w-14 h-14 object-contain" />
                     </div>
                     <div>
                         <h1 class="text-2xl font-bold tracking-tight text-slate-900 dark:text-gray-100">NIMR Drive</h1>

@@ -46,22 +46,21 @@ class AuthController extends Controller
         }
 
         // Create user session
-        session([
-            'user' => [
-                'id' => $user->id,
-                'username' => $user->ad_username,
-                'name' => $user->name,
-                'display_name' => $user->display_name,
-                'email' => $user->email,
-                'quota_bytes' => $user->quota_bytes,
-                'used_bytes' => $user->used_bytes,
-                'folder_path' => $user->folder_path,
-                'last_login' => $user->last_login,
-            ]
+        $request->session()->put('user', [
+            'id' => $user->id,
+            'username' => $user->ad_username,
+            'name' => $user->name,
+            'display_name' => $user->display_name,
+            'email' => $user->email,
+            'quota_bytes' => $user->quota_bytes,
+            'used_bytes' => $user->used_bytes,
+            'folder_path' => $user->folder_path,
+            'last_login' => $user->last_login,
+            'is_admin' => $user->is_admin,
         ]);
 
-        // Set session timeout (2 hours by default)
-        config(['session.lifetime' => config('session.lifetime', 120)]);
+        // Save the session
+        $request->session()->save();
 
         return redirect()->intended('/dashboard');
     }

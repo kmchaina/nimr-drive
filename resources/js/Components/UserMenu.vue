@@ -20,7 +20,7 @@
                     {{ user.display_name || user.name }}
                 </div>
                 <div class="text-xs text-[color:var(--ui-muted)] leading-tight">
-                    @{{ user.ad_username }}
+                    {{ user.ad_username }}
                 </div>
             </div>
             <svg class="w-4 h-4 text-[color:var(--ui-muted)]" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
@@ -40,15 +40,16 @@
                 v-if="open"
                 class="absolute right-0 mt-3 w-56 rounded-2xl border border-[color:var(--ui-border)] bg-[color:var(--ui-surface-strong)] backdrop-blur-2xl shadow-2xl overflow-hidden z-50"
             >
-                <a
-                    href="/profile"
-                    class="flex items-center gap-3 px-4 py-3 text-sm text-[color:var(--ui-fg)] hover:bg-[color:var(--ui-hover)] transition-colors"
+                <button
+                    type="button"
+                    @click="handleProfileClick"
+                    class="w-full flex items-center gap-3 px-4 py-3 text-sm text-[color:var(--ui-fg)] hover:bg-[color:var(--ui-hover)] transition-colors"
                 >
                     <svg class="w-4 h-4 text-[color:var(--ui-muted)]" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5.121 17.804A13.937 13.937 0 0112 16c2.5 0 4.847.655 6.879 1.804M15 10a3 3 0 11-6 0 3 3 0 016 0z"/>
                     </svg>
                     Profile
-                </a>
+                </button>
 
                 <button
                     type="button"
@@ -74,9 +75,14 @@ const props = defineProps({
     user: { type: Object, required: true },
 })
 
-defineEmits(['logout'])
+const emit = defineEmits(['logout', 'profile'])
 
 const open = ref(false)
+
+const handleProfileClick = () => {
+    open.value = false
+    emit('profile')
+}
 
 const initials = computed(() => {
     const name = (props.user.display_name || props.user.name || '').trim()

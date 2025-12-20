@@ -42,7 +42,9 @@ class DashboardController extends Controller
 
         // Get basic file listing for user's directory
         $disk = Storage::disk('lacie');
-        $userPath = "users/{$user['id']}/files";
+        $username = $dbUser->ad_username ?: (string) $dbUser->id;
+        $username = preg_replace('/[^A-Za-z0-9._-]/', '_', $username);
+        $userPath = "users/{$username}/files";
         
         // Ensure user directory exists
         if (!$disk->exists($userPath)) {

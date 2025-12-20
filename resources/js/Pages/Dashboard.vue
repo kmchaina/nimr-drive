@@ -12,12 +12,7 @@
             <!-- Logo/Brand -->
             <div class="h-24 flex items-center px-8 border-b border-[color:var(--ui-border)]">
                 <div class="relative group">
-                    <div class="absolute -inset-1 bg-gradient-to-r from-indigo-500 to-blue-600 rounded-xl blur opacity-25 group-hover:opacity-50 transition duration-1000 group-hover:duration-200"></div>
-                    <div class="relative w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-500 to-blue-600 flex items-center justify-center shadow-2xl shadow-indigo-500/20">
-                        <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19.35 10.04C18.67 6.59 15.64 4 12 4 9.11 4 6.6 5.64 5.35 8.04 2.34 8.36 0 10.91 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96z"/>
-                        </svg>
-                    </div>
+                    <img src="/images/logos/NIMR.png" alt="NIMR Logo" class="w-12 h-12 object-contain" />
                 </div>
                 <div class="ml-4">
                     <h1 class="text-xl font-bold tracking-tight text-[color:var(--ui-fg)] font-heading">NIMR Drive</h1>
@@ -190,7 +185,7 @@
                         </svg>
                     </button>
 
-                    <UserMenu :user="user" @logout="logout" />
+                    <UserMenu :user="user" @logout="logout" @profile="activeView = 'profile'" />
                 </div>
             </header>
 
@@ -457,6 +452,96 @@
                         </table>
                     </div>
                 </div>
+
+                <!-- Profile View -->
+                <div v-if="activeView === 'profile'">
+                    <div class="mb-8">
+                        <h2 class="text-2xl font-bold text-[color:var(--ui-fg)] mb-2 font-heading">My Profile</h2>
+                        <p class="text-sm text-[color:var(--ui-muted)]">View your account information and storage usage</p>
+                    </div>
+
+                    <div class="grid lg:grid-cols-3 gap-6">
+                        <!-- Identity card -->
+                        <div class="lg:col-span-2 rounded-3xl border border-[color:var(--ui-border)] bg-[color:var(--ui-surface-strong)] backdrop-blur-2xl shadow-xl p-6">
+                            <div class="flex items-center gap-4 mb-6">
+                                <div class="w-16 h-16 rounded-2xl bg-gradient-to-br from-indigo-500 to-sky-600 flex items-center justify-center text-white font-bold text-xl shadow-lg shadow-indigo-500/20">
+                                    {{ userInitials }}
+                                </div>
+                                <div>
+                                    <div class="text-2xl font-bold tracking-tight font-heading">
+                                        {{ user.display_name || user.name }}
+                                    </div>
+                                    <div class="mt-1 text-sm text-[color:var(--ui-muted)]">
+                                        {{ user.ad_username }}
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="grid sm:grid-cols-2 gap-4">
+                                <div class="rounded-2xl border border-[color:var(--ui-border)] bg-[color:var(--ui-surface)] p-4">
+                                    <div class="text-xs text-[color:var(--ui-muted)] uppercase tracking-wider font-semibold">Full Name</div>
+                                    <div class="mt-1 text-sm font-medium">{{ user.display_name || user.name }}</div>
+                                </div>
+                                <div class="rounded-2xl border border-[color:var(--ui-border)] bg-[color:var(--ui-surface)] p-4">
+                                    <div class="text-xs text-[color:var(--ui-muted)] uppercase tracking-wider font-semibold">Username</div>
+                                    <div class="mt-1 text-sm font-medium">{{ user.ad_username || user.username }}</div>
+                                </div>
+                                <div class="rounded-2xl border border-[color:var(--ui-border)] bg-[color:var(--ui-surface)] p-4">
+                                    <div class="text-xs text-[color:var(--ui-muted)] uppercase tracking-wider font-semibold">Email</div>
+                                    <div class="mt-1 text-sm font-medium break-all">{{ user.email || 'Not available' }}</div>
+                                </div>
+                                <div class="rounded-2xl border border-[color:var(--ui-border)] bg-[color:var(--ui-surface)] p-4">
+                                    <div class="text-xs text-[color:var(--ui-muted)] uppercase tracking-wider font-semibold">Last Login</div>
+                                    <div class="mt-1 text-sm font-medium">{{ formatLastLogin(user.last_login) }}</div>
+                                </div>
+                                <div class="rounded-2xl border border-[color:var(--ui-border)] bg-[color:var(--ui-surface)] p-4">
+                                    <div class="text-xs text-[color:var(--ui-muted)] uppercase tracking-wider font-semibold">Account Type</div>
+                                    <div class="mt-1 text-sm font-medium">
+                                        <span :class="user.is_admin ? 'text-indigo-400' : 'text-[color:var(--ui-fg)]'">
+                                            {{ user.is_admin ? 'Administrator' : 'Standard User' }}
+                                        </span>
+                                    </div>
+                                </div>
+                                <div class="rounded-2xl border border-[color:var(--ui-border)] bg-[color:var(--ui-surface)] p-4">
+                                    <div class="text-xs text-[color:var(--ui-muted)] uppercase tracking-wider font-semibold">Authentication</div>
+                                    <div class="mt-1 text-sm font-medium">Active Directory</div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Quota card -->
+                        <div class="rounded-3xl border border-[color:var(--ui-border)] bg-[color:var(--ui-surface-strong)] backdrop-blur-2xl shadow-xl p-6">
+                            <div class="text-sm font-semibold mb-4">Storage Quota</div>
+                            <div class="h-3 rounded-full bg-black/5 dark:bg-white/5 overflow-hidden">
+                                <div
+                                    class="h-full rounded-full bg-gradient-to-r from-blue-500 via-indigo-500 to-purple-500"
+                                    :style="{ width: Math.min(quota.usage_percentage, 100) + '%' }"
+                                />
+                            </div>
+                            <div class="mt-3 flex items-center justify-between text-sm">
+                                <div class="font-semibold">{{ quota.used_formatted }}</div>
+                                <div class="text-[color:var(--ui-muted)]">of {{ quota.total_formatted }}</div>
+                            </div>
+                            <div class="mt-2 text-xs text-[color:var(--ui-muted)]">
+                                {{ Math.round(quota.usage_percentage) }}% used
+                            </div>
+                            
+                            <div class="mt-6 pt-4 border-t border-[color:var(--ui-border)]">
+                                <button
+                                    @click="recalculateQuota"
+                                    :disabled="recalculatingQuota"
+                                    class="w-full px-4 py-2.5 rounded-xl text-sm font-medium bg-[color:var(--ui-surface)] hover:bg-[color:var(--ui-hover)] border border-[color:var(--ui-border)] transition-colors disabled:opacity-50"
+                                >
+                                    {{ recalculatingQuota ? 'Recalculating...' : 'Refresh Storage Info' }}
+                                </button>
+                            </div>
+                            
+                            <div class="mt-4 text-xs text-[color:var(--ui-muted)]">
+                                Storage quota is managed by your administrator. Contact support if you need more space.
+                            </div>
+                        </div>
+                    </div>
+                </div>
             </main>
         </div>
 
@@ -649,6 +734,15 @@ const confirmModalResolve = ref(null);
 
 // Load files on component mount
 onMounted(() => {
+    // Check URL for view parameter
+    const urlParams = new URLSearchParams(window.location.search);
+    const viewParam = urlParams.get('view');
+    if (viewParam === 'profile') {
+        activeView.value = 'profile';
+    } else if (viewParam === 'admin' && props.user.is_admin) {
+        activeView.value = 'admin';
+    }
+    
     loadFiles();
 });
 
@@ -658,6 +752,23 @@ const greeting = computed(() => {
     if (hour < 18) return 'Good afternoon';
     return 'Good evening';
 });
+
+const userInitials = computed(() => {
+    const name = (props.user.display_name || props.user.name || '').trim();
+    if (!name) return '?';
+    const parts = name.split(/\s+/).slice(0, 2);
+    return parts.map(p => p[0]?.toUpperCase()).join('');
+});
+
+const formatLastLogin = (lastLogin) => {
+    if (!lastLogin) return 'Never';
+    try {
+        const d = new Date(lastLogin);
+        return d.toLocaleString();
+    } catch {
+        return lastLogin;
+    }
+};
 
 const folderStats = computed(() => {
     const dirs = files.value.filter(f => f.is_directory).length;
