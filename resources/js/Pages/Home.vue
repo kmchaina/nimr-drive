@@ -81,7 +81,7 @@
             <!-- Right Panel - Login -->
             <div class="lg:w-[45%] flex items-center justify-center p-8 lg:p-16 lg:border-l border-slate-200 dark:border-white/10">
                 <div class="w-full max-w-md">
-                    <div class="flex justify-end mb-8">
+                    <div class="flex justify-end mb-8 relative z-50">
                         <ThemeToggle />
                     </div>
 
