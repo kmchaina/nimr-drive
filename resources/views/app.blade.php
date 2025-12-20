@@ -6,6 +6,10 @@
         <meta name="csrf-token" content="{{ csrf_token() }}">
         <title inertia>{{ config('app.name', 'Drive') }}</title>
 
+        <!-- Favicon -->
+        <link rel="icon" type="image/png" href="/images/logos/NIMR.png">
+        <link rel="apple-touch-icon" href="/images/logos/NIMR.png">
+
         <!-- Theme (light default, dark optional) -->
         <script>
             (function () {
