@@ -27,6 +27,25 @@
             </div>
         </div>
 
+        <!-- Filter Chips -->
+        <div v-if="searchQuery || selectedType" class="flex flex-wrap gap-2 mt-3 animate-fade-in">
+            <button
+                v-for="filter in filters"
+                :key="filter.id"
+                @click="toggleType(filter.id)"
+                class="px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest transition-all duration-300 border"
+                :class="selectedType === filter.id 
+                    ? 'bg-indigo-500 text-white border-indigo-500 shadow-lg shadow-indigo-500/20' 
+                    : 'bg-[color:var(--ui-surface)] text-[color:var(--ui-muted)] border-[color:var(--ui-border)] hover:bg-[color:var(--ui-hover)]'
+                "
+            >
+                <div class="flex items-center gap-1.5">
+                    <component :is="filter.icon" class="w-3 h-3" />
+                    {{ filter.label }}
+                </div>
+            </button>
+        </div>
+
         <!-- Search Results Dropdown -->
         <div
             v-if="showResults && (searchResults.length > 0 || isSearching)"
@@ -68,7 +87,7 @@
                                 {{ result.name }}
                             </div>
                             <div class="text-xs text-[color:var(--ui-muted)] truncate mt-0.5">
-                                <span v-if="result.folder_path">{{ result.folder_path }}/</span>
+                                <span v-if="result.folder_path">{{ formatDisplayPath(result.folder_path) }}/</span>
                                 <span v-if="!result.is_directory && result.size_formatted">
                                     • {{ result.size_formatted }}
                                 </span>
@@ -101,7 +120,12 @@ import {
     XMarkIcon,
     FolderIcon,
     DocumentIcon,
-    ChevronRightIcon
+    ChevronRightIcon,
+    PhotoIcon,
+    DocumentTextIcon,
+    TableCellsIcon,
+    PresentationChartBarIcon,
+    ArchiveBoxIcon
 } from '@heroicons/vue/24/outline'
 
 const props = defineProps({
@@ -118,6 +142,26 @@ const searchResults = ref([])
 const isSearching = ref(false)
 const showResults = ref(false)
 const searchTimeout = ref(null)
+const selectedType = ref(null)
+
+const filters = [
+    { id: 'folder', label: 'Folders', icon: FolderIcon },
+    { id: 'pdf', label: 'PDFs', icon: DocumentTextIcon },
+    { id: 'image', label: 'Images', icon: PhotoIcon },
+    { id: 'document', label: 'Documents', icon: DocumentIcon },
+    { id: 'spreadsheet', label: 'Spreadsheets', icon: TableCellsIcon },
+    { id: 'presentation', label: 'Presentations', icon: PresentationChartBarIcon },
+    { id: 'archive', label: 'Archives', icon: ArchiveBoxIcon },
+];
+
+const toggleType = (typeId) => {
+    if (selectedType.value === typeId) {
+        selectedType.value = null;
+    } else {
+        selectedType.value = typeId;
+    }
+    performSearch();
+};
 
 // Watch for search query changes and debounce search
 watch(searchQuery, (newQuery) => {
@@ -125,13 +169,9 @@ watch(searchQuery, (newQuery) => {
         clearTimeout(searchTimeout.value)
     }
 
-    if (newQuery.trim().length === 0) {
+    if (newQuery.trim().length === 0 && !selectedType.value) {
         clearSearch()
         return
-    }
-
-    if (newQuery.trim().length < 2) {
-        return // Don't search for single characters
     }
 
     searchTimeout.value = setTimeout(() => {
@@ -140,7 +180,7 @@ watch(searchQuery, (newQuery) => {
 })
 
 const handleSearchInput = () => {
-    if (searchQuery.value.trim().length === 0) {
+    if (searchQuery.value.trim().length === 0 && !selectedType.value) {
         clearSearch()
     }
 }
@@ -148,7 +188,7 @@ const handleSearchInput = () => {
 const performSearch = async () => {
     const query = searchQuery.value.trim()
     
-    if (query.length < 2) {
+    if (query.length < 2 && !selectedType.value) {
         return
     }
 
@@ -156,7 +196,12 @@ const performSearch = async () => {
     showResults.value = true
 
     try {
-        const response = await fetch(`/api/search?q=${encodeURIComponent(query)}&path=${encodeURIComponent(props.currentPath)}`, {
+        let url = `/api/search?q=${encodeURIComponent(query)}&path=${encodeURIComponent(props.currentPath)}`;
+        if (selectedType.value) {
+            url += `&type=${selectedType.value}`;
+        }
+
+        const response = await fetch(url, {
             method: 'GET',
             headers: {
                 'Accept': 'application/json',
@@ -170,6 +215,7 @@ const performSearch = async () => {
             searchResults.value = data.results
             emit('search-performed', {
                 query: query,
+                filters: { type: selectedType.value },
                 results: data.results,
                 totalResults: data.total_results
             })
@@ -187,6 +233,7 @@ const performSearch = async () => {
 
 const clearSearch = () => {
     searchQuery.value = ''
+    selectedType.value = null
     searchResults.value = []
     showResults.value = false
     isSearching.value = false
@@ -201,6 +248,20 @@ const clearSearch = () => {
 const closeResults = () => {
     showResults.value = false
 }
+
+const formatDisplayPath = (path) => {
+    if (!path) return '';
+    if (path.startsWith('users/')) {
+        const parts = path.split('/');
+        // users / username / files / ...
+        if (parts.length >= 3 && parts[2] === 'files') {
+            const owner = parts[1];
+            const subPath = parts.slice(3).join('/');
+            return `Shared › ${owner}${subPath ? ' › ' + subPath : ''}`;
+        }
+    }
+    return path;
+};
 
 const navigateToResult = (result) => {
     closeResults()

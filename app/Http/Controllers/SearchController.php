@@ -21,20 +21,27 @@ class SearchController extends Controller
     public function search(Request $request)
     {
         $request->validate([
-            'q' => 'required|string|min:1|max:255',
+            'q' => 'nullable|string|max:255',
             'path' => 'nullable|string',
+            'type' => 'nullable|string|in:folder,pdf,image,document,spreadsheet,presentation,archive',
         ]);
 
         $user = $this->getCurrentUser();
-        $query = $request->input('q');
+        $query = $request->input('q', '');
         $currentPath = $request->input('path', '');
+        
+        $filters = [];
+        if ($request->has('type')) {
+            $filters['type'] = $request->input('type');
+        }
 
         try {
-            $results = $this->searchService->searchFiles($user, $query, $currentPath);
+            $results = $this->searchService->searchFiles($user, $query, $currentPath, $filters);
 
             return response()->json([
                 'success' => true,
                 'query' => $query,
+                'filters' => $filters,
                 'results' => $results,
                 'total_results' => count($results),
             ]);

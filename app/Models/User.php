@@ -81,6 +81,22 @@ class User extends Authenticatable
     }
 
     /**
+     * Get shares created by the user
+     */
+    public function shares()
+    {
+        return $this->hasMany(Share::class, 'user_id');
+    }
+
+    /**
+     * Get items shared with the user
+     */
+    public function sharedWithMe()
+    {
+        return $this->hasMany(Share::class, 'shared_with_id');
+    }
+
+    /**
      * Check if user is approaching quota limit (>80%)
      */
     public function isApproachingQuotaLimit(): bool

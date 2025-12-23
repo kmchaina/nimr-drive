@@ -41,9 +41,14 @@ Route::middleware(['user.isolation'])->group(function () {
             Route::get('/files', [App\Http\Controllers\FileController::class, 'index']);
             Route::post('/files/folder', [App\Http\Controllers\FileController::class, 'createFolder']);
             Route::put('/files/rename', [App\Http\Controllers\FileController::class, 'rename']);
+            Route::post('/files/move', [App\Http\Controllers\FileController::class, 'move']);
             Route::delete('/files/delete', [App\Http\Controllers\FileController::class, 'delete']);
+            Route::get('/files/trash', [App\Http\Controllers\FileController::class, 'trash']);
+            Route::post('/files/restore', [App\Http\Controllers\FileController::class, 'restore']);
+            Route::delete('/files/permanent', [App\Http\Controllers\FileController::class, 'permanentDelete']);
             Route::delete('/files/batch-delete', [App\Http\Controllers\FileController::class, 'batchDelete']);
             Route::get('/files/download', [App\Http\Controllers\FileController::class, 'download']);
+            Route::post('/files/download-zip', [App\Http\Controllers\FileController::class, 'downloadZip']);
             Route::get('/files/info', [App\Http\Controllers\FileController::class, 'info']);
             Route::post('/files/upload', [App\Http\Controllers\FileController::class, 'upload']);
             Route::get('/quota', [App\Http\Controllers\FileController::class, 'quota']);
@@ -51,6 +56,25 @@ Route::middleware(['user.isolation'])->group(function () {
 
             // Search routes
             Route::get('/search', [App\Http\Controllers\SearchController::class, 'search']);
+
+            // Sharing routes
+            Route::get('/shares', [App\Http\Controllers\ShareController::class, 'index']);
+            Route::get('/shares/owned', [App\Http\Controllers\ShareController::class, 'owned']);
+            Route::post('/shares', [App\Http\Controllers\ShareController::class, 'create']);
+            Route::put('/shares/{share}', [App\Http\Controllers\ShareController::class, 'update']);
+            Route::delete('/shares/{share}', [App\Http\Controllers\ShareController::class, 'destroy']);
+            Route::get('/users/search', [App\Http\Controllers\ShareController::class, 'searchUsers']);
+
+            // Activity routes (Recents & Starred)
+            Route::get('/recents', [App\Http\Controllers\ActivityController::class, 'recents']);
+            Route::get('/starred', [App\Http\Controllers\ActivityController::class, 'starred']);
+            Route::post('/stars/toggle', [App\Http\Controllers\ActivityController::class, 'toggleStar']);
+
+            // Notification routes
+            Route::get('/notifications', [App\Http\Controllers\NotificationController::class, 'index']);
+            Route::post('/notifications/{notification}/read', [App\Http\Controllers\NotificationController::class, 'markAsRead']);
+            Route::post('/notifications/read-all', [App\Http\Controllers\NotificationController::class, 'markAllAsRead']);
+            Route::delete('/notifications/clear', [App\Http\Controllers\NotificationController::class, 'clearAll']);
         });
 
         // Upload routes with higher rate limit for chunked uploads

@@ -31,6 +31,7 @@ class UploadController extends Controller
             'name' => 'required|string|max:255',
             'path' => 'nullable|string',
             'size' => 'required|integer|min:1',
+            'relative_path' => 'nullable|string',
         ]);
 
         $user = $this->getCurrentUser();
@@ -39,6 +40,7 @@ class UploadController extends Controller
         $fileName = $request->string('name');
         $path = $request->string('path', '');
         $totalSize = $request->integer('size');
+        $relativePath = $request->string('relative_path', '');
 
         try {
             // Check quota before starting upload
@@ -52,7 +54,7 @@ class UploadController extends Controller
 
             // Generate consistent upload ID based on user, filename and size
             // Use a combination that will be the same for all chunks of the same file
-            $uploadId = md5($user->id . '_' . $fileName . '_' . $totalSize);
+            $uploadId = md5($user->id . '_' . $fileName . '_' . $totalSize . '_' . $relativePath);
             $tempDir = storage_path("app/temp/uploads/{$uploadId}");
             
             // Create temp directory and metadata if it doesn't exist
@@ -65,6 +67,7 @@ class UploadController extends Controller
                     'file_name' => $fileName,
                     'size' => $totalSize,
                     'chunks' => $chunks,
+                    'relative_path' => $relativePath,
                     'created_at' => now()->toISOString(),
                 ];
                 
@@ -82,7 +85,7 @@ class UploadController extends Controller
             if (count($uploadedChunks) === $chunks) {
                 // All chunks uploaded, combine them
                 try {
-                    $result = $this->combineChunks($user, $uploadId, $fileName, $path, $chunks, $totalSize);
+                    $result = $this->combineChunks($user, $uploadId, $fileName, $path, $chunks, $totalSize, $relativePath);
                     
                     // Clean up temp files (disabled due to Windows file locking issues)
                     // $this->cleanupTempFiles($tempDir);
@@ -187,7 +190,7 @@ class UploadController extends Controller
     /**
      * Combine uploaded chunks into final file
      */
-    private function combineChunks(User $user, string $uploadId, string $fileName, string $path, int $chunks, int $totalSize): array
+    private function combineChunks(User $user, string $uploadId, string $fileName, string $path, int $chunks, int $totalSize, string $relativePath = ''): array
     {
         $tempDir = storage_path("app/temp/uploads/{$uploadId}");
         $finalFile = "{$tempDir}/final_{$fileName}";
@@ -224,7 +227,7 @@ class UploadController extends Controller
             true // Mark as test file to avoid validation errors
         );
 
-        $results = $this->fileService->uploadFiles($user, $path, [$uploadedFile]);
+        $results = $this->fileService->uploadFiles($user, $path, [$uploadedFile], [$relativePath]);
         
         if (empty($results) || !$results[0]['success']) {
             throw new \Exception($results[0]['error'] ?? 'Upload failed');

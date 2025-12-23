@@ -1,5 +1,5 @@
 <template>
-    <div class="file-list">
+    <div class="file-list" @dragover.prevent @drop="handleRootDrop">
         <!-- Empty State -->
         <div v-if="files.length === 0" class="flex flex-col items-center justify-center py-32 text-center animate-fade-in-up">
             <div class="relative group">
@@ -21,35 +21,40 @@
                 v-for="file in files"
                 :key="file.path"
                 :data-file-name="file.name"
+                draggable="true"
+                @dragstart="handleDragStart($event, file)"
+                @dragover.prevent="handleDragOver($event, file)"
+                @dragleave="handleDragLeave($event, file)"
+                @drop.stop="handleDrop($event, file)"
                 @click="handleFileClick(file)"
                 @contextmenu.prevent="showContextMenu(file, $event)"
                 class="file-item group cursor-pointer p-5 rounded-3xl bg-[color:var(--ui-surface-strong)] border border-[color:var(--ui-border)] hover:bg-[color:var(--ui-hover)] transition-all duration-300 relative overflow-hidden"
-                :class="{ 'ring-2 ring-indigo-500 bg-indigo-500/5': props.selectedFiles.includes(file.path) }"
+                :class="{ 
+                    'ring-2 ring-indigo-500 bg-indigo-500/5': props.selectedFiles.includes(file.path),
+                    'ring-2 ring-indigo-500 bg-indigo-500/10 scale-105': draggingOverPath === file.path && file.is_directory 
+                }"
             >
                 <div class="absolute inset-0 bg-gradient-to-br from-white/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none"></div>
                 <!-- Selection Indicator -->
                  <div v-if="props.selectedFiles.includes(file.path)" class="absolute top-3 right-3 w-5 h-5 bg-indigo-500 rounded-full flex items-center justify-center shadow-lg transform scale-100 transition-transform">
                      <svg class="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"></path></svg>
                  </div>
+
+                 <!-- Star Indicator -->
+                 <button 
+                    @click.stop="emit('file-star-toggle', file)"
+                    class="absolute top-3 left-3 p-1.5 rounded-xl transition-all duration-300 z-20 group/star"
+                    :class="file.is_starred ? 'bg-amber-500/10 text-amber-500 opacity-100' : 'bg-black/5 text-gray-400 opacity-0 group-hover:opacity-100 hover:text-amber-500'"
+                 >
+                    <svg class="w-4 h-4" :fill="file.is_starred ? 'currentColor' : 'none'" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.383-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z"></path>
+                    </svg>
+                 </button>
                 
                 <div class="text-center relative z-10 flex flex-col h-full">
                     <!-- File Icon -->
                     <div class="mb-5 transform group-hover:scale-110 transition-transform duration-500 ease-out-expo flex-1 flex items-center justify-center">
-                        <svg v-if="file.is_directory" class="w-20 h-20 text-blue-500 drop-shadow-2xl" fill="currentColor" viewBox="0 0 24 24">
-                           <defs>
-                                <linearGradient id="folderGradient" x1="0%" y1="0%" x2="100%" y2="100%">
-                                    <stop offset="0%" style="stop-color:#60A5FA;stop-opacity:1" />
-                                    <stop offset="100%" style="stop-color:#3B82F6;stop-opacity:1" />
-                                </linearGradient>
-                            </defs>
-                            <path d="M10 4H4c-1.11 0-2 .89-2 2v12c0 1.11.89 2 2 2h16c1.11 0 2-.89 2-2V8c0-1.11-.89-2-2-2h-8l-2-2z" fill="url(#folderGradient)"/>
-                             <path d="M10 4H4c-1.11 0-2 .89-2 2v12c0 1.11.89 2 2 2h16c1.11 0 2-.89 2-2V8c0-1.11-.89-2-2-2h-8l-2-2z" fill="white" fill-opacity="0.1"/>
-                        </svg>
-                        <div v-else class="w-16 h-16 flex items-center justify-center rounded-2xl bg-black/5 dark:bg-white/5 text-[color:var(--ui-muted)] group-hover:text-indigo-500 group-hover:bg-indigo-500/10 transition-colors shadow-inner border border-[color:var(--ui-border)]">
-                             <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
-                            </svg>
-                        </div>
+                        <FileIcon :name="file.name" :is-directory="file.is_directory" size="lg" />
                     </div>
                     
                     <!-- File Name -->
@@ -59,7 +64,10 @@
                         </div>
                         
                         <!-- File Size -->
-                        <div v-if="!file.is_directory" class="text-xs text-[color:var(--ui-muted)] mt-1 font-mono opacity-70">
+                        <div v-if="file.is_trash" class="text-[10px] font-black uppercase tracking-tighter bg-amber-500/10 text-amber-500 px-2 py-0.5 rounded-md border border-amber-500/10 mt-1 inline-block">
+                            {{ file.days_remaining }}d left
+                        </div>
+                        <div v-else-if="!file.is_directory" class="text-xs text-[color:var(--ui-muted)] mt-1 font-mono opacity-70">
                             {{ file.size_formatted }}
                         </div>
                          <div v-else class="text-xs text-[color:var(--ui-muted)] mt-1 font-mono opacity-70">
@@ -86,19 +94,31 @@
                         v-for="file in files"
                         :key="file.path"
                         :data-file-name="file.name"
+                        draggable="true"
+                        @dragstart="handleDragStart($event, file)"
+                        @dragover.prevent="handleDragOver($event, file)"
+                        @dragleave="handleDragLeave($event, file)"
+                        @drop.stop="handleDrop($event, file)"
                         @click="handleFileClick(file)"
                         @contextmenu.prevent="showContextMenu(file, $event)"
-                        class="hover:bg-[color:var(--ui-hover)] cursor-pointer transition-colors"
-                        :class="{ 'bg-blue-500/10': props.selectedFiles.includes(file.path) }"
+                        class="hover:bg-[color:var(--ui-hover)] cursor-pointer transition-colors group"
+                        :class="{ 
+                            'bg-indigo-500/10': props.selectedFiles.includes(file.path),
+                            'bg-indigo-500/20': draggingOverPath === file.path && file.is_directory
+                        }"
                     >
                         <td class="px-6 py-4 whitespace-nowrap">
                             <div class="flex items-center">
-                                <svg v-if="file.is_directory" class="w-5 h-5 mr-3 text-blue-400" fill="currentColor" viewBox="0 0 24 24">
-                                    <path d="M10 4H4c-1.11 0-2 .89-2 2v12c0 1.11.89 2 2 2h16c1.11 0 2-.89 2-2V8c0-1.11-.89-2-2-2h-8l-2-2z"/>
-                                </svg>
-                                <svg v-else class="w-5 h-5 mr-3 text-[color:var(--ui-muted-2)]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
-                                </svg>
+                                <button 
+                                    @click.stop="emit('file-star-toggle', file)"
+                                    class="mr-3 p-1.5 rounded-lg transition-all duration-300"
+                                    :class="file.is_starred ? 'text-amber-500' : 'text-gray-400 opacity-0 group-hover:opacity-100 hover:text-amber-500'"
+                                >
+                                    <svg class="w-4 h-4" :fill="file.is_starred ? 'currentColor' : 'none'" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.383-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z"></path>
+                                    </svg>
+                                </button>
+                                <FileIcon :name="file.name" :is-directory="file.is_directory" size="sm" class="mr-3" />
                                 <span class="text-sm font-medium text-[color:var(--ui-fg)]">{{ file.name }}</span>
                             </div>
                         </td>
@@ -106,7 +126,10 @@
                             {{ file.is_directory ? '—' : file.size_formatted }}
                         </td>
                         <td class="px-6 py-4 whitespace-nowrap text-sm text-[color:var(--ui-muted)]">
-                            {{ formatDate(file.modified) }}
+                            <span v-if="file.is_trash" class="inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-amber-500/10 text-amber-500 border border-amber-500/20">
+                                {{ file.days_remaining }} days left
+                            </span>
+                            <span v-else>{{ formatDate(file.modified) }}</span>
                         </td>
                         <td class="px-6 py-4 whitespace-nowrap text-sm text-[color:var(--ui-muted)]">
                             <button
@@ -150,6 +173,17 @@
                 Download
             </button>
             <button
+                @click="emit('file-star-toggle', contextMenu.file); contextMenu.show = false"
+                class="w-full text-left px-4 py-3 text-sm text-[color:var(--ui-fg)] hover:bg-[color:var(--ui-hover)] flex items-center gap-3 transition-colors group"
+            >
+                 <div class="p-1.5 rounded-lg bg-amber-500/10 text-amber-400 group-hover:bg-amber-500/20 transition-colors">
+                     <svg class="w-4 h-4" :fill="contextMenu.file.is_starred ? 'currentColor' : 'none'" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.383-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z"></path>
+                    </svg>
+                </div>
+                {{ contextMenu.file.is_starred ? 'Unstar' : 'Star' }}
+            </button>
+            <button
                 @click="renameFile(contextMenu.file)"
                 class="w-full text-left px-4 py-3 text-sm text-[color:var(--ui-fg)] hover:bg-[color:var(--ui-hover)] flex items-center gap-3 transition-colors group"
             >
@@ -158,8 +192,32 @@
                 </div>
                 Rename
             </button>
+            <button
+                v-if="!contextMenu.file.is_trash"
+                @click="shareFile(contextMenu.file)"
+                class="w-full text-left px-4 py-3 text-sm text-[color:var(--ui-fg)] hover:bg-[color:var(--ui-hover)] flex items-center gap-3 transition-colors group"
+            >
+                 <div class="p-1.5 rounded-lg bg-green-500/10 text-green-400 group-hover:bg-green-500/20 transition-colors">
+                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z"/></svg>
+                </div>
+                Share
+            </button>
+
+            <!-- Trash Specific Actions -->
+            <button
+                v-if="contextMenu.file.is_trash"
+                @click="emit('file-restore', contextMenu.file); contextMenu.show = false"
+                class="w-full text-left px-4 py-3 text-sm text-green-400 hover:bg-green-500/10 flex items-center gap-3 transition-colors group"
+            >
+                 <div class="p-1.5 rounded-lg bg-green-500/10 text-green-400">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>
+                </div>
+                Restore
+            </button>
+
             <div class="h-px bg-[color:var(--ui-border)] my-1 mx-4"></div>
             <button
+                v-if="!contextMenu.file.is_trash"
                 @click="deleteFile(contextMenu.file)"
                 class="w-full text-left px-4 py-3 text-sm text-red-400 hover:bg-red-500/10 hover:text-red-300 flex items-center gap-3 transition-colors group"
             >
@@ -167,6 +225,16 @@
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
                 </div>
                 Delete
+            </button>
+            <button
+                v-else
+                @click="emit('file-permanent-delete', contextMenu.file); contextMenu.show = false"
+                class="w-full text-left px-4 py-3 text-sm text-red-400 hover:bg-red-500/10 hover:text-red-300 flex items-center gap-3 transition-colors group"
+            >
+                 <div class="p-1.5 rounded-lg bg-red-500/10 text-red-400">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                </div>
+                Delete Permanently
             </button>
         </div>
 
@@ -181,6 +249,7 @@
 
 <script setup>
 import { ref, reactive } from 'vue';
+import FileIcon from './FileIcon.vue';
 
 const props = defineProps({
     files: {
@@ -206,7 +275,13 @@ const emit = defineEmits([
     'file-download',
     'file-rename',
     'file-delete',
+    'file-share',
+    'file-star-toggle',
+    'file-move',
+    'file-restore',
+    'file-permanent-delete',
     'file-select',
+    'file-click',
     'refresh'
 ]);
 
@@ -217,13 +292,50 @@ const contextMenu = reactive({
     file: null
 });
 
-const handleFileClick = (file) => {
+const draggingOverPath = ref(null);
+
+const handleDragStart = (event, file) => {
+    event.dataTransfer.setData('application/json', JSON.stringify(file));
+    event.dataTransfer.effectAllowed = 'move';
+};
+
+const handleDragOver = (event, file) => {
     if (file.is_directory) {
-        openFolder(file);
+        draggingOverPath.value = file.path;
     } else {
-        // Emit selection event to parent
-        emit('file-select', file.path);
+        draggingOverPath.value = null;
     }
+};
+
+const handleDragLeave = (event, file) => {
+    if (draggingOverPath.value === file.path) {
+        draggingOverPath.value = null;
+    }
+};
+
+const handleDrop = (event, targetFile) => {
+    draggingOverPath.value = null;
+    const sourceData = event.dataTransfer.getData('application/json');
+    if (!sourceData) return;
+
+    const sourceFile = JSON.parse(sourceData);
+    if (sourceFile.path === targetFile.path) return;
+
+    if (targetFile.is_directory) {
+        emit('file-move', {
+            source: sourceFile,
+            targetPath: targetFile.path
+        });
+    }
+};
+
+const handleRootDrop = (event) => {
+    // This allows moving things back to the current root if we're in a subfolder
+    // But for simplicity, we usually move INTO folders shown in the list.
+};
+
+const handleFileClick = (file) => {
+    emit('file-click', file);
 };
 
 const openFolder = (file) => {
@@ -244,6 +356,11 @@ const renameFile = (file) => {
 const deleteFile = (file) => {
     contextMenu.show = false;
     emit('file-delete', file);
+};
+
+const shareFile = (file) => {
+    contextMenu.show = false;
+    emit('file-share', file);
 };
 
 const showContextMenu = (file, event) => {

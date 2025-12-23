@@ -18,7 +18,7 @@ class SearchService
     /**
      * Search files within user's directory
      */
-    public function searchFiles(User $user, string $query, string $currentPath = ''): array
+    public function searchFiles(User $user, string $query, string $currentPath = '', array $filters = []): array
     {
         $userBasePath = $this->getUserBasePath($user);
         $searchPath = $this->getUserPath($user, $currentPath);
@@ -27,32 +27,40 @@ class SearchService
             return [];
         }
 
+        // Get starred paths
+        $starredPaths = \App\Models\Star::where('user_id', $user->id)->pluck('path')->toArray();
+
         $results = [];
         $query = strtolower(trim($query));
         
-        // Return empty results for empty queries
-        if (empty($query)) {
+        // If query is empty but we have filters, we still want to search
+        if (empty($query) && empty($filters)) {
             return [];
         }
 
         try {
             // Search recursively through user's directory
-            $this->searchRecursive($searchPath, $userBasePath, $query, $results);
+            $this->searchRecursive($searchPath, $userBasePath, $query, $results, $starredPaths, $filters);
             
             // Sort results by relevance (exact matches first, then partial matches)
-            usort($results, function($a, $b) use ($query) {
-                $aExact = strtolower($a['name']) === $query ? 1 : 0;
-                $bExact = strtolower($b['name']) === $query ? 1 : 0;
-                
-                if ($aExact !== $bExact) {
-                    return $bExact - $aExact; // Exact matches first
-                }
-                
-                // Then by name length (shorter names first for partial matches)
-                return strlen($a['name']) - strlen($b['name']);
-            });
+            if (!empty($query)) {
+                usort($results, function($a, $b) use ($query) {
+                    $aExact = strtolower($a['name']) === $query ? 1 : 0;
+                    $bExact = strtolower($b['name']) === $query ? 1 : 0;
+                    
+                    if ($aExact !== $bExact) {
+                        return $bExact - $aExact; // Exact matches first
+                    }
+                    
+                    // Then by name length (shorter names first for partial matches)
+                    return strlen($a['name']) - strlen($b['name']);
+                });
+            } else {
+                // If no query, sort by modified date
+                usort($results, fn($a, $b) => $b['modified']->timestamp - $a['modified']->timestamp);
+            }
 
-            Log::info("Search completed for user {$user->id}: query='{$query}', results=" . count($results));
+            Log::info("Search completed for user {$user->id}: query='{$query}', filters=" . json_encode($filters) . ", results=" . count($results));
             
             return $results;
 
@@ -65,13 +73,13 @@ class SearchService
     /**
      * Recursively search through directories
      */
-    private function searchRecursive(string $searchPath, string $userBasePath, string $query, array &$results): void
+    private function searchRecursive(string $searchPath, string $userBasePath, string $query, array &$results, array $starredPaths = [], array $filters = []): void
     {
         // Search files in current directory
         foreach ($this->disk->files($searchPath) as $file) {
             $fileName = basename($file);
             
-            if ($this->matchesQuery($fileName, $query)) {
+            if ($this->matchesQuery($fileName, $query) && $this->matchesFilters($file, $filters)) {
                 $relativePath = $this->getRelativePath($file, $userBasePath);
                 $folderPath = dirname($relativePath);
                 
@@ -85,6 +93,7 @@ class SearchService
                     'mime_type' => $this->disk->mimeType($file),
                     'modified' => $this->getLastModified($file),
                     'is_directory' => false,
+                    'is_starred' => in_array($file, $starredPaths),
                 ];
             }
         }
@@ -94,7 +103,7 @@ class SearchService
             $dirName = basename($directory);
             
             // Check if directory name matches
-            if ($this->matchesQuery($dirName, $query)) {
+            if ($this->matchesQuery($dirName, $query) && $this->matchesFilters($directory, $filters, true)) {
                 $relativePath = $this->getRelativePath($directory, $userBasePath);
                 $folderPath = dirname($relativePath);
                 
@@ -108,12 +117,44 @@ class SearchService
                     'mime_type' => null,
                     'modified' => $this->getLastModified($directory),
                     'is_directory' => true,
+                    'is_starred' => in_array($directory, $starredPaths),
                 ];
             }
             
             // Recursively search subdirectories
-            $this->searchRecursive($directory, $userBasePath, $query, $results);
+            $this->searchRecursive($directory, $userBasePath, $query, $results, $starredPaths, $filters);
         }
+    }
+
+    /**
+     * Check if item matches filters
+     */
+    private function matchesFilters(string $path, array $filters, bool $isDirectory = false): bool
+    {
+        if (empty($filters)) return true;
+
+        foreach ($filters as $key => $value) {
+            if ($key === 'type' && !empty($value)) {
+                if ($isDirectory) {
+                    if ($value !== 'folder') return false;
+                } else {
+                    $extension = strtolower(pathinfo($path, PATHINFO_EXTENSION));
+                    $typeMap = [
+                        'image' => ['jpg', 'jpeg', 'png', 'gif', 'svg', 'webp'],
+                        'pdf' => ['pdf'],
+                        'document' => ['doc', 'docx', 'txt', 'rtf', 'odt'],
+                        'spreadsheet' => ['xls', 'xlsx', 'csv', 'ods'],
+                        'presentation' => ['ppt', 'pptx', 'odp'],
+                        'archive' => ['zip', 'rar', '7z', 'tar', 'gz'],
+                    ];
+
+                    if (!isset($typeMap[$value])) return true; // Unknown type, let it through
+                    if (!in_array($extension, $typeMap[$value])) return false;
+                }
+            }
+        }
+
+        return true;
     }
 
     /**
@@ -133,8 +174,13 @@ class SearchService
      */
     private function getRelativePath(string $fullPath, string $userBasePath): string
     {
-        $relativePath = str_replace($userBasePath . '/', '', $fullPath);
-        return $relativePath;
+        if (str_starts_with($fullPath, $userBasePath)) {
+            return ltrim(str_replace($userBasePath, '', $fullPath), '/');
+        }
+        
+        // For shared paths, return the absolute internal path
+        // The UI will handle virtualization via breadcrumbs
+        return $fullPath;
     }
 
     /**
@@ -152,13 +198,17 @@ class SearchService
      */
     private function getUserPath(User $user, ?string $path = ''): string
     {
-        $basePath = $this->getUserBasePath($user);
-        
         if (is_null($path) || empty($path) || $path === '/') {
-            return $basePath;
+            return $this->getUserBasePath($user);
+        }
+
+        // Handle absolute paths (shared items)
+        if (str_starts_with($path, 'users/')) {
+            return $path;
         }
         
-        // Sanitize path
+        // Default to user's own storage
+        $basePath = $this->getUserBasePath($user);
         $path = trim($path, '/');
         $path = str_replace(['..', '\\'], '', $path);
         

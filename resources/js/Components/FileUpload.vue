@@ -245,6 +245,8 @@ const isDragging = ref(false);
 const dragCounter = ref(0);
 const uploadQueue = ref([]);
 const activeUploadCount = ref(0);
+const fileInput = ref(null);
+const folderInput = ref(null);
 
 // Modal state
 const confirmModalRef = ref(null);
@@ -438,6 +440,7 @@ const uploadFile = async (upload) => {
             
             formData.append('path', targetPath);
             formData.append('size', upload.file.size);
+            formData.append('relative_path', upload.relativePath || upload.file.name);
 
             const response = await axios.post('/api/upload/chunk', formData, {
                 headers: { 'Content-Type': 'multipart/form-data' },
@@ -505,6 +508,23 @@ const closeModal = () => {
 };
 
 const generateUploadId = () => Date.now().toString(36) + Math.random().toString(36).substr(2);
+
+const triggerFolderSelect = () => {
+    if (folderInput.value) {
+        folderInput.value.click();
+    }
+};
+
+const triggerFileSelect = () => {
+    if (fileInput.value) {
+        fileInput.value.click();
+    }
+};
+
+defineExpose({
+    triggerFolderSelect,
+    triggerFileSelect
+});
 
 const formatBytes = (bytes) => {
     if (bytes === 0) return '0 B';

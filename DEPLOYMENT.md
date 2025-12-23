@@ -1,4 +1,4 @@
-# NIMR Drive - Deployment Guide
+ # NIMR Drive - Deployment Guide
 
 ## Architecture Overview
 
@@ -22,7 +22,7 @@
 
 | Component | Requirement |
 |-----------|-------------|
-| PHP | 8.1+ with extensions: ldap, fileinfo, pdo_sqlite |
+| PHP | 8.2+ with extensions: ldap, fileinfo, pdo_sqlite, zip, gd, mbstring |
 | Web Server | Apache or Nginx |
 | Composer | Latest version |
 | Node.js | 18+ (for building assets) |
@@ -36,17 +36,20 @@
 
 1. Download XAMPP from https://www.apachefriends.org/
 2. Install to `C:\xampp`
-3. Enable PHP LDAP extension in `C:\xampp\php\php.ini`:
+3. Enable PHP extensions in `C:\xampp\php\php.ini`:
    ```ini
    extension=ldap
    extension=fileinfo
+   extension=zip
+   extension=pdo_sqlite
+   extension=gd
    
-   ; Upload settings
-   upload_max_filesize = 100M
-   post_max_size = 100M
-   max_execution_time = 600
-   max_input_time = 600
-   memory_limit = 512M
+   ; Upload settings (Optimized for large files and folder uploads)
+   upload_max_filesize = 1G
+   post_max_size = 1G
+   max_execution_time = 3600
+   max_input_time = 3600
+   memory_limit = 1024M
    ```
 4. **Restart Apache** (required for php.ini changes to take effect)
 
@@ -127,7 +130,7 @@ Edit `C:\xampp\apache\conf\extra\httpd-vhosts.conf`:
 ```bash
 sudo apt update
 sudo apt install -y php8.2 php8.2-fpm php8.2-ldap php8.2-sqlite3 php8.2-xml \
-    php8.2-curl php8.2-mbstring php8.2-zip nginx composer nodejs npm cifs-utils
+    php8.2-curl php8.2-mbstring php8.2-zip php8.2-gd nginx composer nodejs npm cifs-utils
 ```
 
 ### Step 2: Mount SMB Share (Critical for Persistence)
@@ -273,11 +276,11 @@ sudo systemctl restart nginx
 
 Edit `/etc/php/8.2/fpm/php.ini`:
 ```ini
-upload_max_filesize = 100M
-post_max_size = 100M
-max_execution_time = 600
-max_input_time = 600
-memory_limit = 512M
+upload_max_filesize = 1G
+post_max_size = 1G
+max_execution_time = 3600
+max_input_time = 3600
+memory_limit = 1024M
 ```
 
 Restart PHP-FPM:
@@ -285,7 +288,28 @@ Restart PHP-FPM:
 sudo systemctl restart php8.2-fpm
 ```
 
-### Step 6: Set Service Dependencies
+### Step 6: Scheduled Tasks (Automatic Trash Cleanup)
+
+The application includes a 30-day automatic trash cleanup policy.
+
+**On Linux (Cron):**
+```bash
+# Edit crontab
+sudo crontab -e -u www-data
+
+# Add this line to run daily at midnight
+0 0 * * * cd /var/www/nimr-drive && php artisan app:cleanup-trash >> /dev/null 2>&1
+```
+
+**On Windows (Task Scheduler):**
+1. Open Task Scheduler
+2. Create a new task "NIMR Drive Trash Cleanup"
+3. Trigger: Daily
+4. Action: Start a program
+   - Program: `C:\xampp\php\php.exe`
+   - Arguments: `C:\xampp\htdocs\nimr-drive\artisan app:cleanup-trash`
+
+### Step 7: Set Service Dependencies
 
 Ensure web services start AFTER the storage is mounted:
 
@@ -475,3 +499,20 @@ For issues, check:
 2. Web server logs: Apache/Nginx error logs
 3. PHP-FPM logs (Linux): `/var/log/php8.2-fpm.log`
 4. System logs (Linux): `journalctl -u nimr-storage-mount.service`
+
+---
+
+## Implemented Features Overview (Dec 2025)
+
+The following high-level features have been implemented and require the configuration above:
+
+1. **Active Directory Integration**: Uses `LdapAuthService` for seamless institutional login.
+2. **Persistent Storage**: Maps user directories to the LaCie network share.
+3. **Sharing System**: Internal file/folder sharing with 'view' or 'edit' permissions.
+4. **Recent & Starred**: Activity tracking and favorites dashboard.
+5. **Notification System**: Instant alerts for shared items and system messages.
+6. **Smart Trash**: Reversible deletion with a 30-day auto-purge policy.
+7. **File Previews**: Browser-native previews for PDFs, Images, and Text files.
+8. **Bulk Operations**: Folder uploads and "Download as ZIP" for multiple items.
+9. **Drag-and-Drop**: Modern file organization interface.
+10. **Quota System**: Real-time enforcement of institutional storage limits.

@@ -24,12 +24,14 @@
             <div class="p-6 relative">
                 <button
                     @click="showNewMenu = !showNewMenu"
-                    class="group w-full flex items-center justify-center px-4 py-3.5 bg-gradient-to-r from-indigo-600 to-blue-600 hover:from-indigo-500 hover:to-blue-500 text-white rounded-2xl shadow-lg shadow-indigo-500/25 transition-all duration-300 hover:shadow-indigo-500/40 hover:-translate-y-0.5 border border-[color:var(--ui-border)]"
+                    class="group w-full flex items-center justify-center px-4 py-4 bg-white dark:bg-indigo-600/10 hover:bg-gray-50 dark:hover:bg-indigo-600/20 text-[color:var(--ui-fg)] rounded-2xl shadow-xl shadow-indigo-500/10 transition-all duration-300 hover:shadow-indigo-500/20 hover:-translate-y-0.5 border border-[color:var(--ui-border)] ring-1 ring-black/5"
                 >
-                    <svg class="w-5 h-5 mr-2 transition-transform duration-300 group-hover:rotate-90" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>
-                    </svg>
-                    <span class="font-semibold tracking-wide">New Item</span>
+                    <div class="p-1 rounded-lg bg-gradient-to-br from-indigo-500 to-blue-600 mr-3 text-white shadow-lg group-hover:rotate-90 transition-transform duration-500">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 4v16m8-8H4"></path>
+                        </svg>
+                    </div>
+                    <span class="font-bold tracking-tight text-sm uppercase">New</span>
                 </button>
                 
                 <!-- Dropdown Menu -->
@@ -67,6 +69,17 @@
                             </div>
                             Upload Files
                         </button>
+                        <button
+                            @click="showFolderUploadDialog(); showNewMenu = false"
+                            class="w-full text-left px-4 py-3 text-sm text-[color:var(--ui-fg)] hover:bg-[color:var(--ui-hover)] flex items-center transition-all group"
+                        >
+                             <div class="p-2 rounded-lg bg-blue-500/10 text-blue-400 mr-3 group-hover:bg-blue-500/20 group-hover:scale-110 transition-all">
+                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 13h6m-3-3v6m-9 1V7a2 2 0 012-2h6l2 2h6a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2z"></path>
+                                </svg>
+                            </div>
+                            Upload Folder
+                        </button>
                     </div>
                 </transition>
                 
@@ -95,6 +108,88 @@
                     <span class="relative z-10">My files</span>
                     <div v-if="activeView === 'my-drive'" class="absolute right-3 w-1.5 h-1.5 rounded-full bg-blue-500 box-shadow-glow"></div>
                 </button>
+
+                <button
+                    @click="activeView = 'shared'; loadSharedFiles()"
+                    :class="[
+                        'w-full flex items-center px-4 py-3.5 rounded-2xl text-sm font-medium transition-all duration-300 group relative overflow-hidden',
+                        activeView === 'shared' 
+                            ? 'bg-[color:var(--ui-hover)] text-[color:var(--ui-fg)] shadow-lg ring-1 ring-[color:var(--ui-border)]' 
+                            : 'text-[color:var(--ui-muted)] hover:bg-[color:var(--ui-hover)] hover:text-[color:var(--ui-fg)] hover:shadow-lg'
+                    ]"
+                >
+                    <div v-if="activeView === 'shared'" class="absolute inset-0 bg-gradient-to-r from-green-500/10 to-emerald-500/10 opacity-100 transition-opacity"></div>
+                    <svg :class="[
+                        'w-5 h-5 mr-3 transition-colors', 
+                        activeView === 'shared' ? 'text-green-500' : 'text-[color:var(--ui-muted-2)] group-hover:text-green-500'
+                    ]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"></path>
+                    </svg>
+                    <span class="relative z-10">Shared with me</span>
+                    <div v-if="activeView === 'shared'" class="absolute right-3 w-1.5 h-1.5 rounded-full bg-green-500 box-shadow-glow"></div>
+                </button>
+
+                <button
+                    @click="activeView = 'recent'; loadRecentFiles()"
+                    :class="[
+                        'w-full flex items-center px-4 py-3.5 rounded-2xl text-sm font-medium transition-all duration-300 group relative overflow-hidden',
+                        activeView === 'recent' 
+                            ? 'bg-[color:var(--ui-hover)] text-[color:var(--ui-fg)] shadow-lg ring-1 ring-[color:var(--ui-border)]' 
+                            : 'text-[color:var(--ui-muted)] hover:bg-[color:var(--ui-hover)] hover:text-[color:var(--ui-fg)] hover:shadow-lg'
+                    ]"
+                >
+                    <div v-if="activeView === 'recent'" class="absolute inset-0 bg-gradient-to-r from-indigo-500/10 to-blue-500/10 opacity-100 transition-opacity"></div>
+                    <svg :class="[
+                        'w-5 h-5 mr-3 transition-colors', 
+                        activeView === 'recent' ? 'text-indigo-500' : 'text-[color:var(--ui-muted-2)] group-hover:text-indigo-500'
+                    ]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                    </svg>
+                    <span class="relative z-10">Recent</span>
+                    <div v-if="activeView === 'recent'" class="absolute right-3 w-1.5 h-1.5 rounded-full bg-indigo-500 box-shadow-glow"></div>
+                </button>
+
+                <button
+                    @click="activeView = 'starred'; loadStarredFiles()"
+                    :class="[
+                        'w-full flex items-center px-4 py-3.5 rounded-2xl text-sm font-medium transition-all duration-300 group relative overflow-hidden',
+                        activeView === 'starred' 
+                            ? 'bg-[color:var(--ui-hover)] text-[color:var(--ui-fg)] shadow-lg ring-1 ring-[color:var(--ui-border)]' 
+                            : 'text-[color:var(--ui-muted)] hover:bg-[color:var(--ui-hover)] hover:text-[color:var(--ui-fg)] hover:shadow-lg'
+                    ]"
+                >
+                    <div v-if="activeView === 'starred'" class="absolute inset-0 bg-gradient-to-r from-amber-500/10 to-yellow-500/10 opacity-100 transition-opacity"></div>
+                    <svg :class="[
+                        'w-5 h-5 mr-3 transition-colors', 
+                        activeView === 'starred' ? 'text-amber-500' : 'text-[color:var(--ui-muted-2)] group-hover:text-amber-500'
+                    ]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.383-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z"></path>
+                    </svg>
+                    <span class="relative z-10">Starred</span>
+                    <div v-if="activeView === 'starred'" class="absolute right-3 w-1.5 h-1.5 rounded-full bg-amber-500 box-shadow-glow"></div>
+                </button>
+
+                <button
+                    @click="activeView = 'trash'; loadTrashFiles()"
+                    :class="[
+                        'w-full flex items-center px-4 py-3.5 rounded-2xl text-sm font-medium transition-all duration-300 group relative overflow-hidden',
+                        activeView === 'trash' 
+                            ? 'bg-[color:var(--ui-hover)] text-[color:var(--ui-fg)] shadow-lg ring-1 ring-[color:var(--ui-border)]' 
+                            : 'text-[color:var(--ui-muted)] hover:bg-[color:var(--ui-hover)] hover:text-[color:var(--ui-fg)] hover:shadow-lg'
+                    ]"
+                >
+                    <div v-if="activeView === 'trash'" class="absolute inset-0 bg-gradient-to-r from-red-500/10 to-rose-500/10 opacity-100 transition-opacity"></div>
+                    <svg :class="[
+                        'w-5 h-5 mr-3 transition-colors', 
+                        activeView === 'trash' ? 'text-red-500' : 'text-[color:var(--ui-muted-2)] group-hover:text-red-500'
+                    ]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
+                    </svg>
+                    <span class="relative z-10">Trash</span>
+                    <div v-if="activeView === 'trash'" class="absolute right-3 w-1.5 h-1.5 rounded-full bg-red-500 box-shadow-glow"></div>
+                </button>
+
+                <div class="h-px bg-[color:var(--ui-border)] my-4 mx-4"></div>
 
                 <!-- Admin Panel (only for admins) -->
                 <button
@@ -171,6 +266,7 @@
 
                 <!-- Right controls -->
                 <div class="ml-6 flex items-center space-x-3">
+                    <NotificationBell @navigate="navigateToPath" />
                     <ThemeToggle />
                     <button
                         @click="toggleView"
@@ -194,46 +290,30 @@
                 <!-- My Files View -->
                 <div v-if="activeView === 'my-drive'">
                     <!-- Premium overview header -->
-                    <div class="mt-4 mb-8 flex flex-col lg:flex-row lg:items-end lg:justify-between gap-6">
+                    <div class="mt-4 mb-8 flex flex-col lg:flex-row lg:items-center lg:justify-between gap-6">
                         <div>
-                            <div class="text-sm text-[color:var(--ui-muted)]">Dashboard</div>
-                            <h2 class="mt-1 text-3xl font-bold text-[color:var(--ui-fg)] tracking-tight font-heading">
-                                {{ greeting }}, {{ user.display_name || user.name }}
+                            <h2 class="text-3xl font-extrabold text-[color:var(--ui-fg)] tracking-tight font-heading flex items-center">
+                                {{ greeting }}, {{ user.display_name?.split(' ')[0] || user.name.split(' ')[0] }}
+                                <span class="ml-3 inline-flex items-center px-3 py-1 rounded-full text-xs font-bold bg-indigo-500/10 text-indigo-500 border border-indigo-500/20">
+                                    <span class="w-1.5 h-1.5 rounded-full bg-indigo-500 mr-2 animate-pulse"></span>
+                                    Member
+                                </span>
                             </h2>
-                            <p class="mt-2 text-sm text-[color:var(--ui-muted)] max-w-2xl">
-                                Manage your files and storage quota—all in one place.
+                            <p class="mt-1 text-sm text-[color:var(--ui-muted)]">
+                                All your institute files are safe and accessible here.
                             </p>
                         </div>
 
-                        <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 w-full lg:w-auto">
-                            <div class="rounded-2xl bg-[color:var(--ui-surface)] border border-[color:var(--ui-border)] p-4 backdrop-blur-md">
-                                <div class="text-xs text-[color:var(--ui-muted)] uppercase tracking-wider font-semibold">Storage used</div>
-                                <div class="mt-2 flex items-baseline justify-between gap-3">
-                                    <div class="text-lg font-semibold text-[color:var(--ui-fg)]">{{ quota.used_formatted }}</div>
-                                    <div class="text-xs text-[color:var(--ui-muted)]">of {{ quota.total_formatted }}</div>
+                        <div class="flex items-center gap-3">
+                            <div class="hidden xl:flex items-center px-4 py-3 rounded-2xl bg-[color:var(--ui-surface)] border border-[color:var(--ui-border)] backdrop-blur-md">
+                                <div class="mr-4">
+                                    <div class="text-[10px] text-[color:var(--ui-muted)] uppercase font-bold tracking-widest">Available</div>
+                                    <div class="text-sm font-bold text-[color:var(--ui-fg)]">{{ quota.available_formatted }}</div>
                                 </div>
-                                <div class="mt-3 h-2 rounded-full bg-black/5 dark:bg-white/10 overflow-hidden">
-                                    <div
-                                        class="h-full rounded-full bg-gradient-to-r from-blue-500 via-indigo-500 to-purple-500"
-                                        :style="{ width: Math.min(quota.usage_percentage, 100) + '%' }"
-                                    />
-                                </div>
-                            </div>
-
-                            <div class="rounded-2xl bg-[color:var(--ui-surface)] border border-[color:var(--ui-border)] p-4 backdrop-blur-md">
-                                <div class="text-xs text-[color:var(--ui-muted)] uppercase tracking-wider font-semibold">Items</div>
-                                <div class="mt-2 text-lg font-semibold text-[color:var(--ui-fg)]">{{ folderStats.total }}</div>
-                                <div class="mt-1 text-xs text-[color:var(--ui-muted)]">
-                                    {{ folderStats.folders }} folder{{ folderStats.folders !== 1 ? 's' : '' }} •
-                                    {{ folderStats.files }} file{{ folderStats.files !== 1 ? 's' : '' }}
-                                </div>
-                            </div>
-
-                            <div class="rounded-2xl bg-[color:var(--ui-surface)] border border-[color:var(--ui-border)] p-4 backdrop-blur-md">
-                                <div class="text-xs text-[color:var(--ui-muted)] uppercase tracking-wider font-semibold">Selected</div>
-                                <div class="mt-2 text-lg font-semibold text-[color:var(--ui-fg)]">{{ selectedFiles.length }}</div>
-                                <div class="mt-1 text-xs text-[color:var(--ui-muted)]">
-                                    {{ selectedFiles.length ? 'Batch actions available' : 'Select items to manage' }}
+                                <div class="w-px h-8 bg-[color:var(--ui-border)] mx-2"></div>
+                                <div class="ml-4">
+                                    <div class="text-[10px] text-[color:var(--ui-muted)] uppercase font-bold tracking-widest">Usage</div>
+                                    <div class="text-sm font-bold text-[color:var(--ui-fg)]">{{ quota.usage_percentage }}%</div>
                                 </div>
                             </div>
                         </div>
@@ -261,16 +341,28 @@
                             </button>
 
                             <transition enter-active-class="transition ease-out duration-200" enter-from-class="opacity-0 translate-y-2" enter-to-class="opacity-100 translate-y-0" leave-active-class="transition ease-in duration-150" leave-from-class="opacity-100 translate-y-0" leave-to-class="opacity-0 translate-y-2">
-                                <button
-                                    v-if="selectedFiles.length > 0"
-                                    @click="handleBatchDelete(getSelectedFileObjects())"
-                                    class="inline-flex items-center px-4 py-2 bg-red-500/10 border border-red-500/20 rounded-xl text-sm font-medium text-red-500 hover:bg-red-500/20 transition-all duration-300 shadow-lg shadow-red-500/10"
-                                >
-                                    <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
-                                    </svg>
-                                    Delete ({{ selectedFiles.length }})
-                                </button>
+                                <div v-if="selectedFiles.length > 0" class="flex items-center space-x-3">
+                                    <button
+                                        @click="handleBatchDelete(getSelectedFileObjects())"
+                                        class="inline-flex items-center px-4 py-2 bg-red-500/10 border border-red-500/20 rounded-xl text-sm font-medium text-red-500 hover:bg-red-500/20 transition-all duration-300 shadow-lg shadow-red-500/10"
+                                    >
+                                        <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
+                                        </svg>
+                                        Delete ({{ selectedFiles.length }})
+                                    </button>
+
+                                    <button
+                                        v-if="selectedFiles.length > 1"
+                                        @click="downloadSelectedAsZip"
+                                        class="inline-flex items-center px-4 py-2 bg-indigo-500/10 border border-indigo-500/20 rounded-xl text-sm font-medium text-indigo-500 hover:bg-indigo-500/20 transition-all duration-300 shadow-lg shadow-indigo-500/10"
+                                    >
+                                        <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path>
+                                        </svg>
+                                        Download as ZIP
+                                    </button>
+                                </div>
                             </transition>
 
                             <div v-if="loading" class="flex items-center text-sm text-[color:var(--ui-muted)] bg-[color:var(--ui-surface)] px-4 py-2 rounded-xl backdrop-blur-md border border-[color:var(--ui-border)]">
@@ -289,13 +381,161 @@
                         :loading="loading"
                         :view-mode="viewMode"
                         :selected-files="selectedFiles"
-                        @folder-open="openFolder"
-                        @file-download="downloadFile"
                         @file-rename="showRenameDialog"
                         @file-delete="showDeleteDialog"
+                        @file-share="showShareDialog"
+                        @file-star-toggle="toggleStar"
+                        @file-move="handleFileMove"
                         @file-select="toggleFileSelection"
+                        @file-click="handleFileClick"
                         @refresh="loadFiles"
                     />
+                </div>
+
+                <!-- Recent View -->
+                <div v-if="activeView === 'recent'">
+                    <div class="mt-4 mb-8">
+                        <div class="text-sm text-[color:var(--ui-muted)]">Activity</div>
+                        <h2 class="text-3xl font-extrabold text-[color:var(--ui-fg)] tracking-tight font-heading">Recent</h2>
+                        <p class="mt-1 text-sm text-[color:var(--ui-muted)]">Files you've accessed or modified lately.</p>
+                    </div>
+                    <FileList
+                        :files="recentFiles"
+                        :loading="loading"
+                        :view-mode="viewMode"
+                        :selected-files="selectedFiles"
+                        @file-rename="showRenameDialog"
+                        @file-delete="showDeleteDialog"
+                        @file-share="showShareDialog"
+                        @file-star-toggle="toggleStar"
+                        @file-move="handleFileMove"
+                        @file-select="toggleFileSelection"
+                        @file-click="handleFileClick"
+                        @refresh="loadRecentFiles"
+                    />
+                </div>
+
+                <!-- Starred View -->
+                <div v-if="activeView === 'starred'">
+                    <div class="mt-4 mb-8">
+                        <div class="text-sm text-[color:var(--ui-muted)]">Favorites</div>
+                        <h2 class="text-3xl font-extrabold text-[color:var(--ui-fg)] tracking-tight font-heading">Starred</h2>
+                        <p class="mt-1 text-sm text-[color:var(--ui-muted)]">Your most important files and folders.</p>
+                    </div>
+                    <FileList
+                        :files="starredFiles"
+                        :loading="loading"
+                        :view-mode="viewMode"
+                        :selected-files="selectedFiles"
+                        @file-rename="showRenameDialog"
+                        @file-delete="showDeleteDialog"
+                        @file-share="showShareDialog"
+                        @file-star-toggle="toggleStar"
+                        @file-move="handleFileMove"
+                        @file-select="toggleFileSelection"
+                        @file-click="handleFileClick"
+                        @refresh="loadStarredFiles"
+                    />
+                </div>
+
+                <!-- Trash View -->
+                <div v-if="activeView === 'trash'">
+                    <div class="mt-4 mb-8 flex items-center justify-between">
+                        <div>
+                            <div class="text-sm text-[color:var(--ui-muted)]">Cleanup</div>
+                            <h2 class="text-3xl font-extrabold text-[color:var(--ui-fg)] tracking-tight font-heading">Trash</h2>
+                            <p class="mt-1 text-sm text-[color:var(--ui-muted)]">Items here will be permanently deleted soon.</p>
+                        </div>
+                        <button
+                            v-if="trashFiles.length > 0"
+                            @click="emptyTrash"
+                            class="px-6 py-2.5 bg-red-500/10 hover:bg-red-500/20 text-red-500 text-sm font-bold rounded-xl transition-all border border-red-500/20"
+                        >
+                            Empty Trash
+                        </button>
+                    </div>
+                    <FileList
+                        :files="trashFiles"
+                        :loading="loading"
+                        :view-mode="viewMode"
+                        :selected-files="selectedFiles"
+                        @file-restore="restoreFile"
+                        @file-permanent-delete="confirmPermanentDelete"
+                        @file-click="handleFileClick"
+                        @refresh="loadTrashFiles"
+                    />
+                </div>
+
+                <!-- Shared with Me View -->
+                <div v-if="activeView === 'shared'">
+                    <div class="mt-4 mb-8">
+                        <div class="text-sm text-[color:var(--ui-muted)]">Shared</div>
+                        <h2 class="mt-1 text-3xl font-bold text-[color:var(--ui-fg)] tracking-tight font-heading">
+                            Shared with me
+                        </h2>
+                        <p class="mt-2 text-sm text-[color:var(--ui-muted)]">
+                            Files and folders shared with you by other institute members.
+                        </p>
+                    </div>
+
+                    <!-- Shared items list -->
+                    <div v-if="sharedItems.length > 0" class="bg-[color:var(--ui-surface)] backdrop-blur-md rounded-3xl border border-[color:var(--ui-border)] overflow-hidden shadow-xl">
+                        <table class="min-w-full divide-y divide-[color:var(--ui-border)]">
+                            <thead class="bg-black/5 dark:bg-white/5">
+                                <tr>
+                                    <th class="px-6 py-4 text-left text-xs font-semibold text-[color:var(--ui-muted)] uppercase tracking-wider">Name</th>
+                                    <th class="px-6 py-4 text-left text-xs font-semibold text-[color:var(--ui-muted)] uppercase tracking-wider">Owner</th>
+                                    <th class="px-6 py-4 text-left text-xs font-semibold text-[color:var(--ui-muted)] uppercase tracking-wider">Access</th>
+                                    <th class="px-6 py-4 text-left text-xs font-semibold text-[color:var(--ui-muted)] uppercase tracking-wider">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-[color:var(--ui-border)]">
+                                <tr v-for="share in sharedItems" :key="share.id" class="hover:bg-[color:var(--ui-hover)] transition-colors">
+                                    <td class="px-6 py-4 whitespace-nowrap">
+                                        <div class="flex items-center cursor-pointer" @click="openSharedItem(share)">
+                                            <div class="p-2 rounded-xl bg-indigo-500/10 text-indigo-400 mr-3">
+                                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
+                                            </div>
+                                            <span class="text-sm font-bold text-[color:var(--ui-fg)]">{{ getShareName(share) }}</span>
+                                        </div>
+                                    </td>
+                                    <td class="px-6 py-4 whitespace-nowrap">
+                                        <div class="flex items-center">
+                                            <div class="w-8 h-8 rounded-lg bg-indigo-500/10 text-indigo-500 flex items-center justify-center text-xs font-bold mr-2">
+                                                {{ getInitials(share.owner) }}
+                                            </div>
+                                            <span class="text-sm text-[color:var(--ui-muted)]">{{ share.owner?.display_name || share.owner?.name }}</span>
+                                        </div>
+                                    </td>
+                                    <td class="px-6 py-4 whitespace-nowrap">
+                                        <span class="px-2 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider" :class="share.access_level === 'edit' ? 'bg-amber-500/10 text-amber-500' : 'bg-blue-500/10 text-blue-500'">
+                                            {{ share.access_level }}
+                                        </span>
+                                    </td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-[color:var(--ui-muted)]">
+                                        <div class="flex items-center gap-3">
+                                            <button @click="downloadSharedItem(share)" class="hover:text-indigo-500 transition-colors" title="Download">
+                                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"></path></svg>
+                                            </button>
+                                            <button @click="removeSharedWithMe(share)" class="hover:text-red-500 transition-colors" title="Remove">
+                                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+                                            </button>
+                                        </div>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    
+                    <div v-else class="flex flex-col items-center justify-center py-32 text-center animate-fade-in-up">
+                        <div class="w-24 h-24 rounded-3xl bg-[color:var(--ui-surface-strong)] border border-[color:var(--ui-border)] flex items-center justify-center mb-8 shadow-2xl shadow-indigo-500/10">
+                            <svg class="h-12 w-12 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"></path>
+                            </svg>
+                        </div>
+                        <h3 class="text-2xl font-bold text-[color:var(--ui-fg)] mb-3 tracking-tight">Nothing shared yet</h3>
+                        <p class="text-[color:var(--ui-muted)] mb-8 max-w-md mx-auto leading-relaxed">Items shared with you by others will appear here.</p>
+                    </div>
                 </div>
 
                 <!-- Admin Panel View -->
@@ -624,12 +864,12 @@
         <div v-if="showDelete" class="fixed inset-0 bg-[color:var(--ui-overlay)]/60 backdrop-blur-sm flex items-center justify-center z-50">
             <div class="bg-[color:var(--ui-surface-strong)] rounded-2xl shadow-2xl w-96 p-6 border border-[color:var(--ui-border)]">
                 <div class="mb-4">
-                    <div class="w-12 h-12 rounded-full bg-red-500/10 flex items-center justify-center mb-4">
-                        <svg class="w-6 h-6 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+                    <div class="w-12 h-12 rounded-full bg-amber-500/10 flex items-center justify-center mb-4">
+                        <svg class="w-6 h-6 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
                     </div>
-                    <h3 class="text-lg font-bold text-[color:var(--ui-fg)] font-heading">Delete forever?</h3>
-                    <p class="text-sm text-[color:var(--ui-muted)] mt-2">
-                        Are you sure you want to delete "<span class="text-[color:var(--ui-fg)] font-medium">{{ deleteFile?.name }}</span>"? This action cannot be undone.
+                    <h3 class="text-lg font-bold text-[color:var(--ui-fg)] font-heading">Move to Trash?</h3>
+                    <p class="text-sm text-[color:var(--ui-muted)] mt-2 leading-relaxed">
+                        "<span class="text-[color:var(--ui-fg)] font-medium">{{ deleteFile?.name }}</span>" will be moved to the trash. You can restore it later from the Trash sidebar.
                     </p>
                 </div>
                 <div class="flex justify-end space-x-3 mt-6">
@@ -641,9 +881,9 @@
                     </button>
                     <button
                         @click="confirmDelete"
-                        class="px-5 py-2.5 text-sm font-bold text-white bg-red-600 hover:bg-red-500 rounded-xl shadow-lg shadow-red-600/20 transition-all"
+                        class="px-5 py-2.5 text-sm font-bold text-white bg-amber-600 hover:bg-amber-500 rounded-xl shadow-lg shadow-amber-600/20 transition-all"
                     >
-                        Delete Forever
+                        Move to Trash
                     </button>
                 </div>
             </div>
@@ -651,11 +891,29 @@
 
         <!-- File Upload Component -->
         <FileUpload
+            ref="uploadRef"
             :show="showUpload"
             :current-path="currentPath"
             @close="showUpload = false"
             @upload-complete="handleUploadComplete"
             @show-error="showError"
+        />
+
+        <!-- Share Modal -->
+        <ShareModal
+            :show="showShare"
+            :item="shareItem"
+            :current-user="user"
+            @close="showShare = false"
+            @share-updated="handleShareUpdated"
+        />
+
+        <!-- File Preview -->
+        <FilePreview
+            :show="showPreview"
+            :file="previewFile"
+            @close="showPreview = false"
+            @download="downloadFile"
         />
 
         <!-- Toast Notifications -->
@@ -688,6 +946,9 @@ import Toast from '../Components/Toast.vue';
 import ThemeToggle from '../Components/ThemeToggle.vue';
 import UserMenu from '../Components/UserMenu.vue';
 import ConfirmModal from '../Components/ConfirmModal.vue';
+import ShareModal from '../Components/ShareModal.vue';
+import FilePreview from '../Components/FilePreview.vue';
+import NotificationBell from '../Components/NotificationBell.vue';
 
 const props = defineProps({
     user: Object,
@@ -705,6 +966,10 @@ const loading = ref(false);
 const activeView = ref('my-drive');
 const viewMode = ref('grid');
 const selectedFiles = ref([]);
+const sharedItems = ref([]);
+const recentFiles = ref([]);
+const starredFiles = ref([]);
+const trashFiles = ref([]);
 
 // Create reactive quota data for real-time updates
 const quota = ref({ ...props.quota });
@@ -728,16 +993,21 @@ const showCreateFolder = ref(false);
 const showRename = ref(false);
 const showDelete = ref(false);
 const showUpload = ref(false);
+const showShare = ref(false);
+const showPreview = ref(false);
 
 // Form data
 const newFolderName = ref('');
 const newFileName = ref('');
 const renameFile = ref(null);
 const deleteFile = ref(null);
+const shareItem = ref(null);
+const previewFile = ref(null);
 
 // Refs
 const toastRef = ref(null);
 const confirmModalRef = ref(null);
+const uploadRef = ref(null);
 
 // Modal state
 const confirmModalType = ref('danger');
@@ -870,6 +1140,11 @@ const refreshFiles = () => {
 };
 
 const navigateToPath = (path) => {
+    if (path === 'SHARED_ROOT') {
+        activeView.value = 'shared';
+        loadSharedFiles();
+        return;
+    }
     loadFiles(path);
 };
 
@@ -896,6 +1171,35 @@ const downloadFile = async (file) => {
     } catch (error) {
         console.error('Error downloading file:', error);
         showError('Failed to download file: ' + error.message);
+    }
+};
+
+const downloadSelectedAsZip = async () => {
+    if (selectedFiles.value.length < 2) return;
+    
+    loading.value = true;
+    try {
+        const response = await axios.post('/api/files/download-zip', {
+            paths: selectedFiles.value
+        }, {
+            responseType: 'blob'
+        });
+        
+        const url = window.URL.createObjectURL(new Blob([response.data]));
+        const link = document.createElement('a');
+        link.href = url;
+        link.setAttribute('download', `nimr_drive_export_${new Date().getTime()}.zip`);
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        window.URL.revokeObjectURL(url);
+        
+        showSuccess(`Packaged ${selectedFiles.value.length} items successfully`);
+    } catch (error) {
+        console.error('Error downloading ZIP:', error);
+        showError('Failed to create ZIP archive');
+    } finally {
+        loading.value = false;
     }
 };
 
@@ -983,8 +1287,259 @@ const confirmDelete = async () => {
     }
 };
 
+const handleFileClick = (file) => {
+    if (file.is_directory) {
+        if (file.is_trash) return;
+        loadFiles(file.path);
+    } else {
+        previewFile.value = file;
+        showPreview.value = true;
+    }
+};
+
+const handleFileMove = async ({ source, targetPath }) => {
+    try {
+        const response = await axios.post('/api/files/move', {
+            source_path: source.path,
+            target_directory: targetPath
+        });
+        
+        if (response.data.success) {
+            showSuccess(`Moved "${source.name}" successfully`);
+            loadFiles(currentPath.value);
+            // Also refresh other views if they are active
+            if (activeView.value === 'recent') loadRecentFiles();
+            if (activeView.value === 'starred') loadStarredFiles();
+        } else {
+            showError(response.data.error);
+        }
+    } catch (error) {
+        console.error('Error moving file:', error);
+        showError(error.response?.data?.error || 'Failed to move item');
+    }
+};
+
 const showUploadDialog = () => {
     showUpload.value = true;
+};
+
+const showFolderUploadDialog = () => {
+    showUpload.value = true;
+    // We need a small delay to ensure the modal is mounted/visible before triggering
+    setTimeout(() => {
+        if (uploadRef.value) {
+            uploadRef.value.triggerFolderSelect();
+        }
+    }, 100);
+};
+
+const showShareDialog = (file) => {
+    shareItem.value = file;
+    showShare.value = true;
+};
+
+const handleShareUpdated = () => {
+    // Optionally refresh something
+};
+
+const toggleStar = async (file) => {
+    try {
+        const response = await axios.post('/api/stars/toggle', {
+            path: file.path,
+            is_directory: file.is_directory
+        });
+        
+        if (response.data.success) {
+            file.is_starred = response.data.is_starred;
+            // Update in other lists if present
+            [files, recentFiles, starredFiles].forEach(list => {
+                const item = list.value.find(f => f.path === file.path);
+                if (item) item.is_starred = file.is_starred;
+            });
+            
+            if (activeView.value === 'starred' && !file.is_starred) {
+                starredFiles.value = starredFiles.value.filter(f => f.path !== file.path);
+            } else if (activeView.value === 'starred' && file.is_starred) {
+                loadStarredFiles();
+            }
+        }
+    } catch (error) {
+        console.error('Error toggling star:', error);
+        showError('Failed to update star status');
+    }
+};
+
+const loadRecentFiles = async () => {
+    loading.value = true;
+    try {
+        const response = await axios.get('/api/recents');
+        if (response.data.success) {
+            recentFiles.value = response.data.items;
+        }
+    } catch (error) {
+        console.error('Error loading recent files:', error);
+        showError('Failed to load recent files');
+    } finally {
+        loading.value = false;
+    }
+};
+
+const loadStarredFiles = async () => {
+    loading.value = true;
+    try {
+        const response = await axios.get('/api/starred');
+        if (response.data.success) {
+            starredFiles.value = response.data.items;
+        }
+    } catch (error) {
+        console.error('Error loading starred files:', error);
+        showError('Failed to load starred files');
+    } finally {
+        loading.value = false;
+    }
+};
+
+const loadTrashFiles = async () => {
+    loading.value = true;
+    try {
+        const response = await axios.get('/api/files/trash');
+        if (response.data.success) {
+            trashFiles.value = response.data.files;
+        }
+    } catch (error) {
+        console.error('Error loading trash:', error);
+        showError('Failed to load trash');
+    } finally {
+        loading.value = false;
+    }
+};
+
+const restoreFile = async (file) => {
+    try {
+        const response = await axios.post('/api/files/restore', { path: file.path });
+        if (response.data.success) {
+            showSuccess(`Restored "${file.name}"`);
+            loadTrashFiles();
+        }
+    } catch (error) {
+        showError('Failed to restore item');
+    }
+};
+
+const confirmPermanentDelete = async (file) => {
+    const confirmed = await showConfirm({
+        title: 'Delete Permanently?',
+        message: `"${file.name}" will be gone forever. This cannot be undone.`,
+        confirmText: 'Delete Forever'
+    });
+
+    if (!confirmed) return;
+
+    try {
+        const response = await axios.delete('/api/files/permanent', { data: { path: file.path } });
+        if (response.data.success) {
+            showSuccess('Item deleted permanently');
+            loadTrashFiles();
+        }
+    } catch (error) {
+        showError('Failed to delete item');
+    }
+};
+
+const emptyTrash = async () => {
+    const confirmed = await showConfirm({
+        title: 'Empty Trash?',
+        message: 'All items in the trash will be permanently deleted. This cannot be undone.',
+        confirmText: 'Empty Everything'
+    });
+
+    if (!confirmed) return;
+
+    try {
+        for (const file of trashFiles.value) {
+            await axios.delete('/api/files/permanent', { data: { path: file.path } });
+        }
+        showSuccess('Trash emptied');
+        loadTrashFiles();
+    } catch (error) {
+        showError('Failed to empty trash completely');
+    }
+};
+
+const loadSharedFiles = async () => {
+    loading.value = true;
+    try {
+        const response = await axios.get('/api/shares');
+        if (response.data.success) {
+            sharedItems.value = response.data.shares;
+        }
+    } catch (error) {
+        console.error('Error loading shared files:', error);
+        showError('Failed to load shared files');
+    } finally {
+        loading.value = false;
+    }
+};
+
+const getShareName = (share) => {
+    return share.path.split('/').pop() || 'Shared item';
+};
+
+const openSharedItem = (share) => {
+    // Construct the absolute path for shared items
+    // This allows the middleware to recognize it as a shared path
+    const absolutePath = `users/${share.owner.ad_username || share.owner.id}/files/${share.path}`;
+    loadFiles(absolutePath);
+    activeView.value = 'my-drive'; // Switch to file view
+};
+
+const downloadSharedItem = async (share) => {
+    const absolutePath = `users/${share.owner.ad_username || share.owner.id}/files/${share.path}`;
+    try {
+        const response = await axios.get('/api/files/download', {
+            params: { path: absolutePath },
+            responseType: 'blob'
+        });
+        
+        const url = window.URL.createObjectURL(new Blob([response.data]));
+        const link = document.createElement('a');
+        link.href = url;
+        link.setAttribute('download', getShareName(share));
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        window.URL.revokeObjectURL(url);
+    } catch (error) {
+        console.error('Error downloading shared item:', error);
+        showError('Failed to download item');
+    }
+};
+
+const removeSharedWithMe = async (share) => {
+    const confirmed = await showConfirm({
+        title: 'Remove shared item',
+        message: `Remove "${getShareName(share)}" from your shared items? You will lose access.`,
+        confirmText: 'Remove'
+    });
+
+    if (!confirmed) return;
+
+    try {
+        const response = await axios.delete(`/api/shares/${share.id}`);
+        if (response.data.success) {
+            showSuccess('Item removed');
+            loadSharedFiles();
+        }
+    } catch (error) {
+        console.error('Error removing share:', error);
+        showError('Failed to remove item');
+    }
+};
+
+const getInitials = (user) => {
+    if (!user) return '?';
+    const name = user.display_name || user.name || '';
+    return name.split(' ').map(n => n[0]).join('').toUpperCase().substring(0, 2);
 };
 
 const recalculateQuota = async () => {
@@ -1024,10 +1579,10 @@ const handleBatchDelete = async (selectedFileObjects) => {
     const fileCount = selectedFileObjects.length;
     
     const confirmed = await showConfirm({
-        type: 'danger',
-        title: 'Delete Files',
-        message: `Delete ${fileCount} item(s) forever? You can't undo this action.`,
-        confirmText: 'Delete'
+        type: 'warning',
+        title: 'Move to Trash',
+        message: `Move ${fileCount} item(s) to the trash? You can restore them later from the Trash sidebar.`,
+        confirmText: 'Move to Trash'
     });
     
     if (!confirmed) return;
@@ -1039,13 +1594,13 @@ const handleBatchDelete = async (selectedFileObjects) => {
         });
         
         if (response.data.success) {
-            showSuccess(`${fileCount} item(s) deleted`, 'Delete complete');
+            showSuccess(`${fileCount} item(s) moved to trash`, 'Task complete');
             loadFiles(currentPath.value);
             selectedFiles.value = [];
         }
     } catch (error) {
-        console.error('Error deleting files:', error);
-        showError('Failed to delete files');
+        console.error('Error moving files to trash:', error);
+        showError('Failed to move files to trash');
     }
 };
 

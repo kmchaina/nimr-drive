@@ -64,10 +64,27 @@ class FileService
         $files = [];
         $directories = [];
 
+        // Get starred paths for this user to mark items
+        $starredPaths = \App\Models\Star::where('user_id', $user->id)->pluck('path')->toArray();
+
+        // Determine the base path for relative path calculation
+        // If userPath starts with users/{username}/files, use that as base
+        $baseForRelative = $this->getUserBasePath($user);
+        if (str_starts_with($userPath, 'users/') && !str_starts_with($userPath, $baseForRelative)) {
+            // It's a shared directory, use its parent or some logic to keep it consistent
+            // For shared items, we want the paths returned to be absolute so the middleware can track them
+            $baseForRelative = ''; 
+        }
+
         try {
             // Get directories
             foreach ($this->disk->directories($userPath) as $directory) {
-                $relativePath = str_replace($this->getUserBasePath($user) . '/', '', $directory);
+                $dirName = basename($directory);
+                
+                // Hide system/trash folders in normal view
+                if ($dirName === '.trash') continue;
+
+                $relativePath = $baseForRelative ? str_replace($baseForRelative . '/', '', $directory) : $directory;
                 $directories[] = [
                     'name' => basename($directory),
                     'path' => $relativePath,
@@ -75,12 +92,13 @@ class FileService
                     'size' => null,
                     'modified' => $this->getLastModified($directory),
                     'is_directory' => true,
+                    'is_starred' => in_array($directory, $starredPaths),
                 ];
             }
 
             // Get files
             foreach ($this->disk->files($userPath) as $file) {
-                $relativePath = str_replace($this->getUserBasePath($user) . '/', '', $file);
+                $relativePath = $baseForRelative ? str_replace($baseForRelative . '/', '', $file) : $file;
                 $files[] = [
                     'name' => basename($file),
                     'path' => $relativePath,
@@ -90,6 +108,7 @@ class FileService
                     'mime_type' => $this->disk->mimeType($file),
                     'modified' => $this->getLastModified($file),
                     'is_directory' => false,
+                    'is_starred' => in_array($file, $starredPaths),
                 ];
             }
 
@@ -174,6 +193,49 @@ class FileService
     }
 
     /**
+     * Move a file or folder to a new directory
+     */
+    public function move(User $user, string $sourcePath, string $targetDirectory): bool
+    {
+        $sourceFullPath = $this->getUserPath($user, $sourcePath);
+        
+        // Target directory is relative to user's root
+        $targetDirectoryPath = $this->getUserPath($user, $targetDirectory);
+        $fileName = basename($sourceFullPath);
+        $destinationFullPath = rtrim($targetDirectoryPath, '/') . '/' . $fileName;
+
+        if (!$this->disk->exists($sourceFullPath)) {
+            throw new \Exception("Source file or folder not found");
+        }
+
+        if ($this->disk->exists($destinationFullPath)) {
+            // If it exists, generate a unique name
+            $fileName = $this->generateUniqueFileName($targetDirectoryPath, $fileName);
+            $destinationFullPath = rtrim($targetDirectoryPath, '/') . '/' . $fileName;
+        }
+
+        try {
+            $result = $this->disk->move($sourceFullPath, $destinationFullPath);
+            
+            if ($result) {
+                Log::info("Moved {$sourceFullPath} to {$destinationFullPath} for user {$user->id}");
+                
+                // Clear cache for both source and destination parent directories
+                $sourceParent = dirname($sourcePath);
+                if ($sourceParent === '.') $sourceParent = '';
+                
+                $this->clearCache($user, $sourceParent);
+                $this->clearCache($user, $targetDirectory);
+            }
+            
+            return $result;
+        } catch (\Exception $e) {
+            Log::error("Failed to move {$sourceFullPath} to {$destinationFullPath}: " . $e->getMessage());
+            throw new \Exception("Unable to move item: " . $e->getMessage());
+        }
+    }
+
+    /**
      * Delete a file or folder
      */
     public function delete(User $user, string $path): bool
@@ -184,39 +246,165 @@ class FileService
             throw new \Exception("File or folder not found");
         }
 
+        // Instead of deleting, move to trash
+        return $this->moveToTrash($user, $path);
+    }
+
+    /**
+     * Move a file or folder to trash
+     */
+    public function moveToTrash(User $user, string $path): bool
+    {
+        $fullPath = $this->getUserPath($user, $path);
+        $trashPath = $this->getUserTrashPath($user);
+        
+        if (!$this->disk->exists($trashPath)) {
+            $this->disk->makeDirectory($trashPath);
+        }
+
+        $fileName = basename($fullPath);
+        $timestamp = now()->timestamp;
+        $destinationPath = $trashPath . '/' . $timestamp . '_' . $fileName;
+
         try {
-            $isDirectory = $this->disk->directoryExists($fullPath);
-            
-            if ($isDirectory) {
-                $result = $this->disk->deleteDirectory($fullPath);
-                
-                // Recalculate quota after directory deletion
-                if ($result) {
-                    $this->quotaService->recalculateUsage($user);
-                }
-            } else {
-                $result = $this->disk->delete($fullPath);
-                
-                // For testing with fake files, recalculate quota after deletion
-                if ($result) {
-                    $this->quotaService->recalculateUsage($user);
-                }
-            }
+            $result = $this->disk->move($fullPath, $destinationPath);
             
             if ($result) {
-                Log::info("Deleted {$fullPath} for user {$user->id}");
-                // Clear cache for the parent directory
-                $parentPath = dirname($path);
-                if ($parentPath === '.') {
-                    $parentPath = '';
-                }
-                $this->clearCache($user, $parentPath);
+                Log::info("Moved to trash: {$fullPath} for user {$user->id}");
+                $this->clearCache($user, dirname($path) === '.' ? '' : dirname($path));
+                $this->clearCache($user, '.trash');
             }
             
             return $result;
         } catch (\Exception $e) {
-            Log::error("Failed to delete {$fullPath}: " . $e->getMessage());
-            throw new \Exception("Unable to delete: " . $e->getMessage());
+            Log::error("Failed to move to trash {$fullPath}: " . $e->getMessage());
+            throw new \Exception("Unable to move to trash: " . $e->getMessage());
+        }
+    }
+
+    /**
+     * Get user's trash path
+     */
+    private function getUserTrashPath(User $user): string
+    {
+        return $this->getUserBasePath($user) . '/.trash';
+    }
+
+    /**
+     * List files in trash
+     */
+    public function listTrash(User $user): array
+    {
+        $trashPath = $this->getUserTrashPath($user);
+        
+        if (!$this->disk->exists($trashPath)) {
+            return [];
+        }
+
+        $items = [];
+        $now = now();
+
+        foreach ($this->disk->files($trashPath) as $file) {
+            $baseName = basename($file);
+            // Extract timestamp from prefix (e.g., 1234567890_file.txt)
+            preg_match('/^(\d+)_/', $baseName, $matches);
+            $deletedAt = isset($matches[1]) ? \Carbon\Carbon::createFromTimestamp($matches[1]) : $this->getLastModified($file);
+            $originalName = preg_replace('/^\d+_/', '', $baseName);
+            
+            $daysInTrash = $deletedAt->diffInDays($now);
+            $daysRemaining = max(0, 30 - $daysInTrash);
+            
+            $items[] = [
+                'name' => $originalName,
+                'path' => '.trash/' . $baseName,
+                'type' => 'file',
+                'size' => $this->disk->size($file),
+                'size_formatted' => $this->formatBytes($this->disk->size($file)),
+                'modified' => $this->getLastModified($file),
+                'deleted_at' => $deletedAt,
+                'days_remaining' => (int) $daysRemaining,
+                'is_directory' => false,
+                'is_trash' => true,
+            ];
+        }
+
+        foreach ($this->disk->directories($trashPath) as $dir) {
+            $baseName = basename($dir);
+            preg_match('/^(\d+)_/', $baseName, $matches);
+            $deletedAt = isset($matches[1]) ? \Carbon\Carbon::createFromTimestamp($matches[1]) : $this->getLastModified($dir);
+            $originalName = preg_replace('/^\d+_/', '', $baseName);
+            
+            $daysInTrash = $deletedAt->diffInDays($now);
+            $daysRemaining = max(0, 30 - $daysInTrash);
+            
+            $items[] = [
+                'name' => $originalName,
+                'path' => '.trash/' . $baseName,
+                'type' => 'directory',
+                'modified' => $this->getLastModified($dir),
+                'deleted_at' => $deletedAt,
+                'days_remaining' => (int) $daysRemaining,
+                'is_directory' => true,
+                'is_trash' => true,
+            ];
+        }
+
+        return $items;
+    }
+
+    /**
+     * Restore item from trash
+     */
+    public function restoreFromTrash(User $user, string $trashPath): bool
+    {
+        $fullTrashPath = $this->getUserPath($user, $trashPath);
+        $baseName = basename($trashPath);
+        $originalName = preg_replace('/^\d+_/', '', $baseName);
+        
+        $destinationPath = $this->getUserBasePath($user) . '/' . $originalName;
+
+        if ($this->disk->exists($destinationPath)) {
+            $originalName = $this->generateUniqueFileName($this->getUserBasePath($user), $originalName);
+            $destinationPath = $this->getUserBasePath($user) . '/' . $originalName;
+        }
+
+        try {
+            $result = $this->disk->move($fullTrashPath, $destinationPath);
+            if ($result) {
+                $this->clearCache($user, '');
+                $this->clearCache($user, '.trash');
+            }
+            return $result;
+        } catch (\Exception $e) {
+            throw new \Exception("Restore failed: " . $e->getMessage());
+        }
+    }
+
+    /**
+     * Permanently delete from trash
+     */
+    public function permanentDelete(User $user, string $trashPath): bool
+    {
+        $fullPath = $this->getUserPath($user, $trashPath);
+        
+        try {
+            $size = 0;
+            if (!$this->disk->directoryExists($fullPath)) {
+                $size = $this->disk->size($fullPath);
+                $result = $this->disk->delete($fullPath);
+            } else {
+                $size = $this->calculateDirectorySize($fullPath);
+                $result = $this->disk->deleteDirectory($fullPath);
+            }
+
+            if ($result) {
+                // Subtract from quota
+                $this->quotaService->updateUsedBytes($user, -$size);
+                $this->clearCache($user, '.trash');
+            }
+            return $result;
+        } catch (\Exception $e) {
+            throw new \Exception("Delete failed: " . $e->getMessage());
         }
     }
 
@@ -242,7 +430,7 @@ class FileService
     /**
      * Upload files
      */
-    public function uploadFiles(User $user, ?string $path, array $files): array
+    public function uploadFiles(User $user, ?string $path, array $files, array $relativePaths = []): array
     {
         $userPath = $this->getUserPath($user, $path ?? '');
         
@@ -254,7 +442,7 @@ class FileService
         $results = [];
         $didUploadAtLeastOne = false;
 
-        foreach ($files as $file) {
+        foreach ($files as $index => $file) {
             if (!$file instanceof UploadedFile) {
                 $results[] = [
                     'name' => 'unknown',
@@ -276,41 +464,73 @@ class FileService
                     continue;
                 }
 
+                // Get original name and handle potential directory structure
+                $originalName = $file->getClientOriginalName();
+                $relativePath = $relativePaths[$index] ?? '';
+                
+                // Final destination path logic
+                $targetUploadDir = $userPath;
+                $finalFileName = $originalName;
+
+                if (!empty($relativePath)) {
+                    // This is a folder upload
+                    $dirPath = dirname($relativePath);
+                    if ($dirPath !== '.') {
+                        $targetUploadDir = rtrim($userPath, '/') . '/' . $dirPath;
+                        if (!$this->disk->exists($targetUploadDir)) {
+                            $this->disk->makeDirectory($targetUploadDir, 0755, true);
+                        }
+                    }
+                    $finalFileName = basename($relativePath);
+                }
+
                 // Validate file name
-                $fileName = $file->getClientOriginalName();
-                $this->validateFileName($fileName);
+                $this->validateFileName($finalFileName);
 
                 // Check if file already exists
-                $filePath = $userPath . '/' . $fileName;
+                $filePath = rtrim($targetUploadDir, '/') . '/' . $finalFileName;
                 if ($this->disk->exists($filePath)) {
                     // Generate unique name
-                    $fileName = $this->generateUniqueFileName($userPath, $fileName);
-                    $filePath = $userPath . '/' . $fileName;
+                    $finalFileName = $this->generateUniqueFileName($targetUploadDir, $finalFileName);
+                    $filePath = rtrim($targetUploadDir, '/') . '/' . $finalFileName;
                 }
 
                 // Store the file
-                $storedPath = $file->storeAs($userPath, $fileName, 'lacie');
+                $storedPath = $file->storeAs($targetUploadDir, $finalFileName, 'lacie');
                 
                 if ($storedPath) {
                     // For testing, use original file size since fake files may have 0 actual size
                     $actualFileSize = $this->disk->size($storedPath);
                     $sizeToUse = $actualFileSize > 0 ? $actualFileSize : $fileSize;
                     
+                    // Determine which user's quota to update
+                    $quotaUser = $user;
+                    if (str_starts_with($targetUploadDir, 'users/')) {
+                        $pathParts = explode('/', $targetUploadDir);
+                        if (count($pathParts) >= 2) {
+                            $ownerUsername = $pathParts[1];
+                            $owner = User::where('ad_username', $ownerUsername)->first();
+                            if ($owner) {
+                                $quotaUser = $owner;
+                            }
+                        }
+                    }
+
                     // Update user's used bytes
-                    $this->quotaService->updateUsedBytes($user, $sizeToUse);
+                    $this->quotaService->updateUsedBytes($quotaUser, $sizeToUse);
                     $didUploadAtLeastOne = true;
                     
                     $results[] = [
-                        'name' => $fileName,
+                        'name' => $finalFileName,
                         'success' => true,
                         'size' => $fileSize,
                         'size_formatted' => $this->formatBytes($fileSize)
                     ];
                     
-                    Log::info("Uploaded file {$fileName} for user {$user->id}");
+                    Log::info("Uploaded file {$finalFileName} for user {$user->id}");
                 } else {
                     $results[] = [
-                        'name' => $fileName,
+                        'name' => $finalFileName,
                         'success' => false,
                         'error' => 'Failed to store file'
                     ];
@@ -347,26 +567,49 @@ class FileService
     }
 
     /**
-     * Download a file
+     * Download multiple files/folders as a ZIP archive
      */
-    public function downloadFile(User $user, string $path): \Symfony\Component\HttpFoundation\StreamedResponse
+    public function downloadZip(User $user, array $paths): string
     {
-        $fullPath = $this->getUserPath($user, $path);
-
-        if (!$this->disk->exists($fullPath) || $this->disk->directoryExists($fullPath)) {
-            throw new \Exception("File not found");
+        $zip = new \ZipArchive();
+        $tempFile = tempnam(sys_get_temp_dir(), 'nimr_zip_');
+        
+        if ($zip->open($tempFile, \ZipArchive::CREATE | \ZipArchive::OVERWRITE) !== true) {
+            throw new \Exception("Could not create ZIP archive");
         }
 
-        try {
-            $fileName = basename($fullPath);
-            $mimeType = $this->disk->mimeType($fullPath);
+        foreach ($paths as $path) {
+            $fullPath = $this->getUserPath($user, $path);
             
-            return $this->disk->download($fullPath, $fileName, [
-                'Content-Type' => $mimeType,
-            ]);
-        } catch (\Exception $e) {
-            Log::error("Download failed for {$fullPath}: " . $e->getMessage());
-            throw new \Exception("Unable to download file: " . $e->getMessage());
+            if (!$this->disk->exists($fullPath)) continue;
+
+            $baseInZip = basename($fullPath);
+
+            if ($this->disk->directoryExists($fullPath)) {
+                $this->addDirectoryToZip($zip, $fullPath, $baseInZip);
+            } else {
+                $fileContent = $this->disk->get($fullPath);
+                $zip->addFromString($baseInZip, $fileContent);
+            }
+        }
+
+        $zip->close();
+        return $tempFile;
+    }
+
+    /**
+     * Helper to recursively add directory contents to ZIP
+     */
+    private function addDirectoryToZip(\ZipArchive $zip, string $fullPath, string $zipPath): void
+    {
+        $zip->addEmptyDir($zipPath);
+        
+        foreach ($this->disk->files($fullPath) as $file) {
+            $zip->addFromString($zipPath . '/' . basename($file), $this->disk->get($file));
+        }
+
+        foreach ($this->disk->directories($fullPath) as $dir) {
+            $this->addDirectoryToZip($zip, $dir, $zipPath . '/' . basename($dir));
         }
     }
 
@@ -410,21 +653,29 @@ class FileService
      */
     private function getUserPath(User $user, ?string $path = ''): string
     {
-        $basePath = $this->getUserBasePath($user);
-        
         if (is_null($path) || empty($path) || $path === '/') {
-            return $basePath;
+            return $this->getUserBasePath($user);
+        }
+
+        // If it's an absolute path (starts with users/), check if it's shared or belongs to user
+        if (str_starts_with($path, 'users/')) {
+            // Validate that the user has access to this absolute path
+            if ($this->securityService->sanitizePath($path) !== $path) {
+                 throw new \Exception('Invalid path format');
+            }
+
+            // The middleware already checked access, but let's be safe
+            return $path;
         }
         
-        // Validate and sanitize path using SecurityService
+        // Validate and sanitize relative path
         $validation = $this->securityService->validatePath($path);
         if (!$validation['valid']) {
             throw new \Exception('Invalid path: ' . implode(', ', $validation['errors']));
         }
         
         $sanitizedPath = $validation['sanitized'];
-        
-        return $basePath . '/' . $sanitizedPath;
+        return $this->getUserBasePath($user) . '/' . $sanitizedPath;
     }
 
     /**
