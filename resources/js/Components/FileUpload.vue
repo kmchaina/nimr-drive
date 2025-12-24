@@ -5,9 +5,8 @@
         <input ref="folderInput" type="file" webkitdirectory directory multiple @change="handleFolderSelect" class="hidden" />
 
         <!-- Upload Modal -->
-        <teleport to="body">
-            <div v-if="showModal" class="fixed inset-0 bg-[color:var(--ui-overlay)]/60 backdrop-blur-md overflow-y-auto h-full w-full z-[100] flex items-center justify-center transition-all duration-300">
-                <div class="relative mx-auto p-8 border border-[color:var(--ui-border)] w-full max-w-2xl shadow-2xl rounded-3xl bg-[color:var(--ui-surface-strong)] backdrop-blur-xl transform transition-all scale-100">
+        <div v-if="showModal" class="fixed inset-0 bg-[color:var(--ui-overlay)]/60 backdrop-blur-md overflow-y-auto h-full w-full z-50 flex items-center justify-center transition-all duration-300">
+            <div class="relative mx-auto p-8 border border-[color:var(--ui-border)] w-full max-w-2xl shadow-2xl rounded-3xl bg-[color:var(--ui-surface-strong)] backdrop-blur-xl transform transition-all scale-100">
                 <div class="mt-0">
                     <div class="flex items-center justify-between mb-6">
                         <div>
@@ -207,7 +206,7 @@
                     </div>
                 </div>
             </div>
-        </teleport>
+        </div>
 
         <!-- Confirm Modal -->
         <ConfirmModal

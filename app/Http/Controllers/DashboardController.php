@@ -57,16 +57,20 @@ class DashboardController extends Controller
             $adminData = $this->getAdminData();
         }
 
+        $availableBytes = max(0, $user['quota_bytes'] - $user['used_bytes']);
+        
         return Inertia::render('Dashboard', [
             'user' => $user,
             'quota' => [
                 'used_bytes' => $user['used_bytes'],
                 'total_bytes' => $user['quota_bytes'],
+                'available_bytes' => $availableBytes,
                 'usage_percentage' => round($quotaUsagePercentage, 2),
                 'is_approaching_limit' => $isApproachingLimit,
                 'has_exceeded' => $hasExceededQuota,
                 'used_formatted' => $this->formatBytes($user['used_bytes']),
                 'total_formatted' => $this->formatBytes($user['quota_bytes']),
+                'available_formatted' => $this->formatBytes($availableBytes),
             ],
             'user_path' => $userPath,
             'adminData' => $adminData,

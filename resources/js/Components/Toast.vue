@@ -1,6 +1,5 @@
 <template>
-    <teleport to="body">
-        <div class="fixed top-4 right-4 z-[100] space-y-2 font-sans max-w-[90vw] sm:max-w-xs">
+    <div class="fixed top-4 right-4 z-50 space-y-2 font-sans max-w-[90vw] sm:max-w-xs">
         <transition-group name="toast">
             <div
                 v-for="toast in toasts"
@@ -59,8 +58,7 @@
                 </div>
             </div>
         </transition-group>
-        </div>
-    </teleport>
+    </div>
 </template>
 
 <script setup>

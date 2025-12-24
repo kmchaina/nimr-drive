@@ -14,10 +14,10 @@
                 @click="handleBackdropClick"
             >
                 <!-- Backdrop -->
-                <div class="fixed inset-0 bg-black/50 backdrop-blur-sm"></div>
+                <div class="fixed inset-0 bg-black/50 backdrop-blur-sm" aria-hidden="true"></div>
 
                 <!-- Modal Container -->
-                <div class="flex min-h-full items-center justify-center p-4">
+                <div class="flex min-h-full items-center justify-center p-4 relative">
                     <transition
                         enter-active-class="transition ease-out duration-200"
                         enter-from-class="opacity-0 scale-95 translate-y-4"
@@ -76,14 +76,14 @@
                                 <button
                                     v-if="showCancel"
                                     @click="handleCancel"
-                                    class="flex-1 px-4 py-2.5 text-sm font-medium text-[color:var(--ui-fg)] bg-[color:var(--ui-surface-2)] hover:bg-[color:var(--ui-surface-strong)] border border-[color:var(--ui-border)] rounded-lg transition-colors"
+                                    class="flex-1 px-4 py-2.5 text-sm font-medium text-[color:var(--ui-fg)] bg-[color:var(--ui-surface-2)] hover:bg-[color:var(--ui-surface-strong)] border border-[color:var(--ui-border)] rounded-lg transition-colors cursor-pointer"
                                 >
                                     {{ cancelText }}
                                 </button>
                                 <button
                                     @click="handleConfirm"
                                     :class="[
-                                        'flex-1 px-4 py-2.5 text-sm font-semibold rounded-lg transition-all shadow-sm',
+                                        'flex-1 px-4 py-2.5 text-sm font-semibold rounded-lg transition-all shadow-sm cursor-pointer',
                                         type === 'danger' ? 'bg-red-500 hover:bg-red-600 text-white' :
                                         type === 'warning' ? 'bg-amber-500 hover:bg-amber-600 text-white' :
                                         type === 'success' ? 'bg-emerald-500 hover:bg-emerald-600 text-white' :

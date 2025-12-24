@@ -63,6 +63,7 @@ class FileService
     {
         $files = [];
         $directories = [];
+        $seenPaths = []; // Track unique paths to avoid duplicates
 
         // Get starred paths for this user to mark items
         $starredPaths = \App\Models\Star::where('user_id', $user->id)->pluck('path')->toArray();
@@ -83,6 +84,10 @@ class FileService
                 
                 // Hide system/trash folders in normal view
                 if ($dirName === '.trash') continue;
+                
+                // Skip duplicates
+                if (isset($seenPaths[$directory])) continue;
+                $seenPaths[$directory] = true;
 
                 $relativePath = $baseForRelative ? str_replace($baseForRelative . '/', '', $directory) : $directory;
                 $directories[] = [
@@ -98,14 +103,28 @@ class FileService
 
             // Get files
             foreach ($this->disk->files($userPath) as $file) {
+                // Skip duplicates
+                if (isset($seenPaths[$file])) continue;
+                $seenPaths[$file] = true;
+                
                 $relativePath = $baseForRelative ? str_replace($baseForRelative . '/', '', $file) : $file;
+                
+                try {
+                    $size = $this->disk->size($file);
+                    $mimeType = $this->disk->mimeType($file);
+                } catch (\Exception $e) {
+                    // Skip files we can't access
+                    Log::warning("Cannot access file {$file}: " . $e->getMessage());
+                    continue;
+                }
+                
                 $files[] = [
                     'name' => basename($file),
                     'path' => $relativePath,
                     'type' => 'file',
-                    'size' => $this->disk->size($file),
-                    'size_formatted' => $this->formatBytes($this->disk->size($file)),
-                    'mime_type' => $this->disk->mimeType($file),
+                    'size' => $size,
+                    'size_formatted' => $this->formatBytes($size),
+                    'mime_type' => $mimeType,
                     'modified' => $this->getLastModified($file),
                     'is_directory' => false,
                     'is_starred' => in_array($file, $starredPaths),
@@ -277,36 +296,121 @@ class FileService
             $timestamp = now()->timestamp;
             $destinationPath = $trashPath . '/' . $timestamp . '_' . $fileName;
 
-            // Attempt move
-            Log::debug("Moving {$fullPath} to {$destinationPath}");
+            // Get absolute paths for native PHP operations and normalize slashes for Windows
+            $absoluteSource = $this->normalizePath($this->disk->path($fullPath));
+            $absoluteDestination = $this->normalizePath($this->disk->path($destinationPath));
+            
+            Log::debug("Moving {$absoluteSource} to {$absoluteDestination}");
             $result = false;
             
+            // Use native PHP rename() which is more reliable on network shares
             try {
-                // Flysystem move() uses rename() internally for local disks
-                $result = $this->disk->move($fullPath, $destinationPath);
-                
-                if (!$result) {
-                    Log::warning("Disk move returned false for {$fullPath}, attempting fallback");
+                // First try native rename (fastest, works on same filesystem)
+                if (@rename($absoluteSource, $absoluteDestination)) {
+                    $result = true;
+                    Log::info("Native rename succeeded");
+                } else {
+                    $lastError = error_get_last();
+                    Log::warning("Native rename failed: " . ($lastError['message'] ?? 'unknown error'));
                 }
             } catch (\Exception $e) {
-                Log::warning("Disk move threw exception: " . $e->getMessage() . ". Attempting fallback.");
+                Log::warning("Native rename threw exception: " . $e->getMessage());
             }
 
-            // Fallback for cross-volume moves or permission issues on some SMB shares
+            // Fallback 1: Try Flysystem move
             if (!$result) {
-                if ($this->disk->directoryExists($fullPath)) {
-                    // For directories, we need to move recursively which is complex with Flysystem
-                    // but we can try to copy and then delete
-                    Log::info("Attempting recursive copy for directory move to trash");
-                    // Simple recursive move logic for small folders
-                    $this->recursiveCopy($fullPath, $destinationPath);
-                    $this->disk->deleteDirectory($fullPath);
-                    $result = true;
+                try {
+                    $result = $this->disk->move($fullPath, $destinationPath);
+                    if ($result) {
+                        Log::info("Flysystem move succeeded");
+                    } else {
+                        Log::warning("Flysystem move returned false");
+                    }
+                } catch (\Exception $e) {
+                    Log::warning("Flysystem move failed: " . $e->getMessage());
+                }
+            }
+
+            // Fallback 2: Copy and delete (for cross-volume or permission issues)
+            if (!$result) {
+                $isDirectory = is_dir($absoluteSource);
+                
+                if ($isDirectory) {
+                    Log::info("Attempting native directory copy for move to trash");
+                    try {
+                        $this->nativeRecursiveCopy($absoluteSource, $absoluteDestination);
+                        
+                        // Verify destination exists
+                        if (is_dir($absoluteDestination)) {
+                            // Delete source directory with logging
+                            Log::info("Copy succeeded, now deleting source directory: {$absoluteSource}");
+                            
+                            // Small delay to allow file handles to close on SMB shares
+                            usleep(100000); // 100ms
+                            
+                            $deleteSuccess = $this->nativeRecursiveDelete($absoluteSource);
+                            
+                            // Verify source is actually gone
+                            clearstatcache(true, $absoluteSource);
+                            $sourceStillExists = is_dir($absoluteSource);
+                            
+                            if (!$sourceStillExists) {
+                                $result = true;
+                                Log::info("Native directory copy+delete succeeded");
+                            } else {
+                                // Source still exists - delete the copy in trash to avoid duplicates
+                                Log::error("Source directory still exists after delete attempt - rolling back");
+                                $this->nativeRecursiveDelete($absoluteDestination);
+                                throw new \Exception("Could not delete source directory. It may be in use or locked.");
+                            }
+                        } else {
+                            throw new \Exception("Copy completed but destination directory not found");
+                        }
+                    } catch (\Exception $copyError) {
+                        Log::error("Directory copy error: " . $copyError->getMessage());
+                        // Clean up partial copy if it failed
+                        if (is_dir($absoluteDestination)) {
+                            $this->nativeRecursiveDelete($absoluteDestination);
+                        }
+                        throw new \Exception("Failed to move directory to trash: " . $copyError->getMessage());
+                    }
                 } else {
-                    Log::info("Attempting file copy for move to trash");
-                    if ($this->disk->copy($fullPath, $destinationPath)) {
-                        $this->disk->delete($fullPath);
-                        $result = true;
+                    Log::info("Attempting native file copy for move to trash");
+                    try {
+                        if (@copy($absoluteSource, $absoluteDestination)) {
+                            // Verify copy succeeded
+                            if (file_exists($absoluteDestination)) {
+                                // Small delay to allow file handles to close
+                                usleep(50000); // 50ms
+                                
+                                $unlinkResult = @unlink($absoluteSource);
+                                
+                                // Verify source is actually gone
+                                clearstatcache(true, $absoluteSource);
+                                $sourceStillExists = file_exists($absoluteSource);
+                                
+                                if (!$sourceStillExists) {
+                                    $result = true;
+                                    Log::info("Native file copy+delete succeeded");
+                                } else {
+                                    // Source still exists - delete the copy in trash to avoid duplicates
+                                    Log::error("Source file still exists after delete attempt - rolling back");
+                                    @unlink($absoluteDestination);
+                                    throw new \Exception("Could not delete source file. It may be in use or locked.");
+                                }
+                            } else {
+                                throw new \Exception("Copy completed but destination file not found");
+                            }
+                        } else {
+                            $lastError = error_get_last();
+                            throw new \Exception("File copy failed: " . ($lastError['message'] ?? 'unknown error'));
+                        }
+                    } catch (\Exception $copyError) {
+                        // Clean up partial copy if it failed
+                        if (file_exists($absoluteDestination)) {
+                            @unlink($absoluteDestination);
+                        }
+                        throw new \Exception("Failed to move file to trash: " . $copyError->getMessage());
                     }
                 }
             }
@@ -315,6 +419,9 @@ class FileService
                 Log::info("Successfully moved to trash: {$fullPath} -> {$destinationPath}");
                 $this->clearCache($user, dirname($path) === '.' ? '' : dirname($path));
                 $this->clearCache($user, '.trash');
+                
+                // Clean up starred and recent entries for this item
+                $this->cleanupActivityRecords($user, $fullPath);
                 
                 // If it was a shared path, we should also clear cache for the owner
                 if (str_starts_with($path, 'users/')) {
@@ -336,21 +443,126 @@ class FileService
             throw new \Exception("Unable to move to trash: " . $e->getMessage());
         }
     }
-
+    
     /**
-     * Helper for recursive copy (fallback for move)
+     * Native recursive copy for directories (more reliable on network shares)
      */
-    private function recursiveCopy(string $source, string $destination): void
+    private function nativeRecursiveCopy(string $source, string $destination): void
     {
-        $this->disk->makeDirectory($destination);
+        $source = $this->normalizePath($source);
+        $destination = $this->normalizePath($destination);
         
-        foreach ($this->disk->files($source) as $file) {
-            $this->disk->copy($file, $destination . '/' . basename($file));
+        if (!is_dir($source)) {
+            throw new \Exception("Source is not a directory: {$source}");
         }
-
-        foreach ($this->disk->directories($source) as $dir) {
-            $this->recursiveCopy($dir, $destination . '/' . basename($dir));
+        
+        if (!@mkdir($destination, 0755, true) && !is_dir($destination)) {
+            throw new \Exception("Failed to create destination directory: {$destination}");
         }
+        
+        $iterator = new \RecursiveIteratorIterator(
+            new \RecursiveDirectoryIterator($source, \RecursiveDirectoryIterator::SKIP_DOTS),
+            \RecursiveIteratorIterator::SELF_FIRST
+        );
+        
+        $fileCount = 0;
+        foreach ($iterator as $item) {
+            $subPath = $iterator->getSubPathname();
+            // Normalize the subpath as well
+            $subPath = str_replace(['/', '\\'], DIRECTORY_SEPARATOR, $subPath);
+            $targetPath = $destination . DIRECTORY_SEPARATOR . $subPath;
+            
+            if ($item->isDir()) {
+                if (!@mkdir($targetPath, 0755, true) && !is_dir($targetPath)) {
+                    throw new \Exception("Failed to create directory: {$targetPath}");
+                }
+            } else {
+                $sourcePath = $this->normalizePath($item->getPathname());
+                if (!@copy($sourcePath, $targetPath)) {
+                    $lastError = error_get_last();
+                    throw new \Exception("Failed to copy file {$sourcePath}: " . ($lastError['message'] ?? 'unknown error'));
+                }
+                $fileCount++;
+                // Log progress every 100 files for large directories
+                if ($fileCount % 100 === 0) {
+                    Log::debug("Copied {$fileCount} files so far...");
+                }
+            }
+        }
+        Log::info("Recursive copy completed: {$fileCount} files copied");
+    }
+    
+    /**
+     * Native recursive delete for directories
+     * Returns true if the directory was successfully deleted
+     */
+    private function nativeRecursiveDelete(string $path): bool
+    {
+        $path = $this->normalizePath($path);
+        
+        if (!is_dir($path)) {
+            if (file_exists($path)) {
+                return @unlink($path);
+            }
+            return true; // Already doesn't exist
+        }
+        
+        $errors = [];
+        
+        try {
+            $iterator = new \RecursiveIteratorIterator(
+                new \RecursiveDirectoryIterator($path, \RecursiveDirectoryIterator::SKIP_DOTS),
+                \RecursiveIteratorIterator::CHILD_FIRST
+            );
+            
+            foreach ($iterator as $item) {
+                $itemPath = $this->normalizePath($item->getPathname());
+                if ($item->isDir()) {
+                    if (!@rmdir($itemPath)) {
+                        $errors[] = "Failed to remove directory: {$itemPath}";
+                    }
+                } else {
+                    if (!@unlink($itemPath)) {
+                        $errors[] = "Failed to delete file: {$itemPath}";
+                    }
+                }
+            }
+            
+            // Finally remove the root directory
+            if (!@rmdir($path)) {
+                $errors[] = "Failed to remove root directory: {$path}";
+            }
+        } catch (\Exception $e) {
+            Log::error("Exception during recursive delete: " . $e->getMessage());
+            $errors[] = $e->getMessage();
+        }
+        
+        if (!empty($errors)) {
+            Log::warning("Recursive delete had errors: " . implode(', ', array_slice($errors, 0, 5)));
+            return !is_dir($path); // Return true if directory no longer exists
+        }
+        
+        return true;
+    }
+    
+    /**
+     * Normalize path slashes for Windows compatibility
+     */
+    private function normalizePath(string $path): string
+    {
+        // For UNC paths (network shares), keep the leading \\ but normalize the rest
+        if (str_starts_with($path, '//') || str_starts_with($path, '\\\\')) {
+            // It's a UNC path - normalize to use backslashes consistently on Windows
+            $path = str_replace('/', '\\', $path);
+            // Ensure it starts with \\
+            if (str_starts_with($path, '\\\\')) {
+                return $path;
+            }
+            return '\\' . ltrim($path, '\\');
+        }
+        
+        // For regular paths, use DIRECTORY_SEPARATOR
+        return str_replace(['/', '\\'], DIRECTORY_SEPARATOR, $path);
     }
 
     /**
@@ -373,10 +585,18 @@ class FileService
         }
 
         $items = [];
+        $seenPaths = []; // Track unique paths to avoid duplicates
         $now = now();
 
         foreach ($this->disk->files($trashPath) as $file) {
             $baseName = basename($file);
+            
+            // Skip if we've already processed this path
+            if (isset($seenPaths[$baseName])) {
+                continue;
+            }
+            $seenPaths[$baseName] = true;
+            
             // Extract timestamp from prefix (e.g., 1234567890_file.txt)
             preg_match('/^(\d+)_/', $baseName, $matches);
             $deletedAt = isset($matches[1]) ? \Carbon\Carbon::createFromTimestamp($matches[1]) : $this->getLastModified($file);
@@ -385,12 +605,18 @@ class FileService
             $daysInTrash = $deletedAt->diffInDays($now);
             $daysRemaining = max(0, 30 - $daysInTrash);
             
+            try {
+                $size = $this->disk->size($file);
+            } catch (\Exception $e) {
+                $size = 0;
+            }
+            
             $items[] = [
                 'name' => $originalName,
                 'path' => '.trash/' . $baseName,
                 'type' => 'file',
-                'size' => $this->disk->size($file),
-                'size_formatted' => $this->formatBytes($this->disk->size($file)),
+                'size' => $size,
+                'size_formatted' => $this->formatBytes($size),
                 'modified' => $this->getLastModified($file),
                 'deleted_at' => $deletedAt,
                 'days_remaining' => (int) $daysRemaining,
@@ -401,6 +627,13 @@ class FileService
 
         foreach ($this->disk->directories($trashPath) as $dir) {
             $baseName = basename($dir);
+            
+            // Skip if we've already processed this path
+            if (isset($seenPaths[$baseName])) {
+                continue;
+            }
+            $seenPaths[$baseName] = true;
+            
             preg_match('/^(\d+)_/', $baseName, $matches);
             $deletedAt = isset($matches[1]) ? \Carbon\Carbon::createFromTimestamp($matches[1]) : $this->getLastModified($dir);
             $originalName = preg_replace('/^\d+_/', '', $baseName);
@@ -408,10 +641,15 @@ class FileService
             $daysInTrash = $deletedAt->diffInDays($now);
             $daysRemaining = max(0, 30 - $daysInTrash);
             
+            // Calculate directory size
+            $size = $this->calculateDirectorySize($dir);
+            
             $items[] = [
                 'name' => $originalName,
                 'path' => '.trash/' . $baseName,
                 'type' => 'directory',
+                'size' => $size,
+                'size_formatted' => $this->formatBytes($size),
                 'modified' => $this->getLastModified($dir),
                 'deleted_at' => $deletedAt,
                 'days_remaining' => (int) $daysRemaining,
@@ -419,6 +657,11 @@ class FileService
                 'is_trash' => true,
             ];
         }
+
+        // Sort by deleted_at descending (most recent first)
+        usort($items, function($a, $b) {
+            return $b['deleted_at']->timestamp - $a['deleted_at']->timestamp;
+        });
 
         return $items;
     }
@@ -638,6 +881,30 @@ class FileService
     }
 
     /**
+     * Download a single file
+     */
+    public function downloadFile(User $user, string $path)
+    {
+        $fullPath = $this->getUserPath($user, $path);
+
+        if (!$this->disk->exists($fullPath)) {
+            throw new \Exception("File not found");
+        }
+
+        if ($this->disk->directoryExists($fullPath)) {
+            throw new \Exception("Cannot download a directory directly. Use ZIP download for folders.");
+        }
+
+        $fileName = basename($fullPath);
+        $mimeType = $this->disk->mimeType($fullPath);
+        $absolutePath = $this->disk->path($fullPath);
+
+        return response()->download($absolutePath, $fileName, [
+            'Content-Type' => $mimeType,
+        ]);
+    }
+
+    /**
      * Download multiple files/folders as a ZIP archive
      */
     public function downloadZip(User $user, array $paths): string
@@ -820,6 +1087,34 @@ class FileService
         }
         
         return round($bytes, 2) . ' ' . $units[$i];
+    }
+
+    /**
+     * Clean up starred and recent entries when file is trashed
+     */
+    private function cleanupActivityRecords(User $user, string $fullPath): void
+    {
+        try {
+            // Delete starred entries for this path and any children
+            \App\Models\Star::where('user_id', $user->id)
+                ->where(function($query) use ($fullPath) {
+                    $query->where('path', $fullPath)
+                          ->orWhere('path', 'LIKE', $fullPath . '/%');
+                })
+                ->delete();
+            
+            // Delete recent entries for this path and any children
+            \App\Models\Recent::where('user_id', $user->id)
+                ->where(function($query) use ($fullPath) {
+                    $query->where('path', $fullPath)
+                          ->orWhere('path', 'LIKE', $fullPath . '/%');
+                })
+                ->delete();
+                
+            Log::debug("Cleaned up activity records for trashed path: {$fullPath}");
+        } catch (\Exception $e) {
+            Log::warning("Failed to cleanup activity records for {$fullPath}: " . $e->getMessage());
+        }
     }
 
     /**

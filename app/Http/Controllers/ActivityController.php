@@ -26,10 +26,22 @@ class ActivityController extends Controller
         $items = [];
 
         foreach ($recents as $recent) {
+            // Skip items that are in trash (contain /.trash/)
+            if (str_contains($recent->path, '/.trash/')) {
+                $recent->delete();
+                continue;
+            }
+            
             if ($disk->exists($recent->path)) {
+                // Calculate relative path for the user
+                $relativePath = $recent->path;
+                if (str_starts_with($recent->path, $user->folder_path . '/')) {
+                    $relativePath = substr($recent->path, strlen($user->folder_path) + 1);
+                }
+                
                 $items[] = [
                     'name' => basename($recent->path),
-                    'path' => $recent->path,
+                    'path' => $relativePath,
                     'is_directory' => $recent->is_directory,
                     'accessed_at' => $recent->accessed_at,
                     'size_formatted' => $recent->is_directory ? null : $this->formatBytes($disk->size($recent->path)),
@@ -62,10 +74,22 @@ class ActivityController extends Controller
         $items = [];
 
         foreach ($stars as $star) {
+            // Skip items that are in trash (contain /.trash/)
+            if (str_contains($star->path, '/.trash/')) {
+                $star->delete();
+                continue;
+            }
+            
             if ($disk->exists($star->path)) {
+                // Calculate relative path for the user
+                $relativePath = $star->path;
+                if (str_starts_with($star->path, $user->folder_path . '/')) {
+                    $relativePath = substr($star->path, strlen($user->folder_path) + 1);
+                }
+                
                 $items[] = [
                     'name' => basename($star->path),
-                    'path' => $star->path,
+                    'path' => $relativePath,
                     'is_directory' => $star->is_directory,
                     'is_starred' => true,
                     'size_formatted' => $star->is_directory ? null : $this->formatBytes($disk->size($star->path)),
