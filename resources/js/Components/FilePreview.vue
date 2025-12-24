@@ -1,5 +1,6 @@
 <template>
-    <div v-if="show" class="fixed inset-0 bg-black/90 backdrop-blur-sm z-[100] flex flex-col transition-all duration-300">
+    <teleport to="body">
+        <div v-if="show" class="fixed inset-0 bg-black/90 backdrop-blur-sm z-[100] flex flex-col transition-all duration-300">
         <!-- Header -->
         <div class="h-16 flex items-center justify-between px-6 bg-gradient-to-b from-black/50 to-transparent">
             <div class="flex items-center gap-4">
@@ -71,7 +72,7 @@
                 </div>
             </template>
         </div>
-    </div>
+    </teleport>
 </template>
 
 <script setup>

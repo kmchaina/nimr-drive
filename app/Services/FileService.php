@@ -258,27 +258,98 @@ class FileService
         $fullPath = $this->getUserPath($user, $path);
         $trashPath = $this->getUserTrashPath($user);
         
-        if (!$this->disk->exists($trashPath)) {
-            $this->disk->makeDirectory($trashPath);
-        }
-
-        $fileName = basename($fullPath);
-        $timestamp = now()->timestamp;
-        $destinationPath = $trashPath . '/' . $timestamp . '_' . $fileName;
+        Log::debug("Attempting to move to trash. Source: {$fullPath}, Trash: {$trashPath}");
 
         try {
-            $result = $this->disk->move($fullPath, $destinationPath);
+            if (!$this->disk->exists($fullPath)) {
+                throw new \Exception("Source file not found: {$path}");
+            }
+
+            // Ensure trash directory exists and is writable
+            if (!$this->disk->exists($trashPath)) {
+                if (!$this->disk->makeDirectory($trashPath)) {
+                    Log::error("Failed to create trash directory: {$trashPath}");
+                    throw new \Exception("Could not create trash directory. Please check permissions.");
+                }
+            }
+
+            $fileName = basename(rtrim($fullPath, '/'));
+            $timestamp = now()->timestamp;
+            $destinationPath = $trashPath . '/' . $timestamp . '_' . $fileName;
+
+            // Attempt move
+            Log::debug("Moving {$fullPath} to {$destinationPath}");
+            $result = false;
             
-            if ($result) {
-                Log::info("Moved to trash: {$fullPath} for user {$user->id}");
-                $this->clearCache($user, dirname($path) === '.' ? '' : dirname($path));
-                $this->clearCache($user, '.trash');
+            try {
+                // Flysystem move() uses rename() internally for local disks
+                $result = $this->disk->move($fullPath, $destinationPath);
+                
+                if (!$result) {
+                    Log::warning("Disk move returned false for {$fullPath}, attempting fallback");
+                }
+            } catch (\Exception $e) {
+                Log::warning("Disk move threw exception: " . $e->getMessage() . ". Attempting fallback.");
+            }
+
+            // Fallback for cross-volume moves or permission issues on some SMB shares
+            if (!$result) {
+                if ($this->disk->directoryExists($fullPath)) {
+                    // For directories, we need to move recursively which is complex with Flysystem
+                    // but we can try to copy and then delete
+                    Log::info("Attempting recursive copy for directory move to trash");
+                    // Simple recursive move logic for small folders
+                    $this->recursiveCopy($fullPath, $destinationPath);
+                    $this->disk->deleteDirectory($fullPath);
+                    $result = true;
+                } else {
+                    Log::info("Attempting file copy for move to trash");
+                    if ($this->disk->copy($fullPath, $destinationPath)) {
+                        $this->disk->delete($fullPath);
+                        $result = true;
+                    }
+                }
             }
             
-            return $result;
+            if ($result) {
+                Log::info("Successfully moved to trash: {$fullPath} -> {$destinationPath}");
+                $this->clearCache($user, dirname($path) === '.' ? '' : dirname($path));
+                $this->clearCache($user, '.trash');
+                
+                // If it was a shared path, we should also clear cache for the owner
+                if (str_starts_with($path, 'users/')) {
+                    $pathParts = explode('/', $path);
+                    if (count($pathParts) >= 2) {
+                        $ownerUsername = $pathParts[1];
+                        $owner = User::where('ad_username', $ownerUsername)->first();
+                        if ($owner) {
+                            $this->clearCache($owner, dirname($path));
+                        }
+                    }
+                }
+                return true;
+            }
+            
+            throw new \Exception("The filesystem rejected the move operation.");
         } catch (\Exception $e) {
-            Log::error("Failed to move to trash {$fullPath}: " . $e->getMessage());
+            Log::error("Trash error for user {$user->id}, path {$path}: " . $e->getMessage());
             throw new \Exception("Unable to move to trash: " . $e->getMessage());
+        }
+    }
+
+    /**
+     * Helper for recursive copy (fallback for move)
+     */
+    private function recursiveCopy(string $source, string $destination): void
+    {
+        $this->disk->makeDirectory($destination);
+        
+        foreach ($this->disk->files($source) as $file) {
+            $this->disk->copy($file, $destination . '/' . basename($file));
+        }
+
+        foreach ($this->disk->directories($source) as $dir) {
+            $this->recursiveCopy($dir, $destination . '/' . basename($dir));
         }
     }
 

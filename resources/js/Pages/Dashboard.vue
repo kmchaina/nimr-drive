@@ -798,96 +798,71 @@
         </div>
 
         <!-- Create Folder Modal -->
-        <div v-if="showCreateFolder" class="fixed inset-0 bg-[color:var(--ui-overlay)]/60 backdrop-blur-sm flex items-center justify-center z-50">
-            <div class="bg-[color:var(--ui-surface-strong)] rounded-2xl shadow-2xl w-96 p-6 border border-[color:var(--ui-border)] transform transition-all scale-100">
-                <h3 class="text-lg font-bold text-[color:var(--ui-fg)] mb-1 font-heading">New folder</h3>
-                <p class="text-sm text-[color:var(--ui-muted)] mb-4">Enter a name for your new folder</p>
-                
-                <input
-                    v-model="newFolderName"
-                    @keyup.enter="createFolder"
-                    type="text"
-                    placeholder="Untitled folder"
-                    class="w-full px-4 py-3 bg-white/70 dark:bg-black/20 border border-[color:var(--ui-border)] rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-transparent text-[color:var(--ui-fg)] placeholder-[color:var(--ui-muted-2)] mb-6"
-                    autofocus
-                />
-                
-                <div class="flex justify-end space-x-3">
-                    <button
-                        @click="showCreateFolder = false"
-                        class="px-5 py-2.5 text-sm font-medium text-[color:var(--ui-muted)] hover:text-[color:var(--ui-fg)] hover:bg-[color:var(--ui-hover)] rounded-xl transition-colors"
-                    >
-                        Cancel
-                    </button>
-                    <button
-                        @click="createFolder"
-                        :disabled="!newFolderName.trim()"
-                        class="px-5 py-2.5 text-sm font-bold text-white bg-blue-600 hover:bg-blue-500 rounded-xl shadow-lg shadow-blue-600/20 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                        Create Folder
-                    </button>
+        <teleport to="body">
+            <div v-if="showCreateFolder" class="fixed inset-0 bg-[color:var(--ui-overlay)]/60 backdrop-blur-sm flex items-center justify-center z-[100]">
+                <div class="bg-[color:var(--ui-surface-strong)] rounded-2xl shadow-2xl w-96 p-6 border border-[color:var(--ui-border)] transform transition-all scale-100">
+                    <h3 class="text-lg font-bold text-[color:var(--ui-fg)] mb-1 font-heading">New folder</h3>
+                    <p class="text-sm text-[color:var(--ui-muted)] mb-4">Enter a name for your new folder</p>
+                    
+                    <input
+                        v-model="newFolderName"
+                        @keyup.enter="createFolder"
+                        type="text"
+                        placeholder="Untitled folder"
+                        class="w-full px-4 py-3 bg-white/70 dark:bg-black/20 border border-[color:var(--ui-border)] rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-transparent text-[color:var(--ui-fg)] placeholder-[color:var(--ui-muted-2)] mb-6"
+                        autofocus
+                    />
+                    
+                    <div class="flex justify-end space-x-3">
+                        <button
+                            @click="showCreateFolder = false"
+                            class="px-5 py-2.5 text-sm font-medium text-[color:var(--ui-muted)] hover:text-[color:var(--ui-fg)] hover:bg-[color:var(--ui-hover)] rounded-xl transition-colors"
+                        >
+                            Cancel
+                        </button>
+                        <button
+                            @click="createFolder"
+                            :disabled="!newFolderName.trim()"
+                            class="px-5 py-2.5 text-sm font-bold text-white bg-blue-600 hover:bg-blue-500 rounded-xl shadow-lg shadow-blue-600/20 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                            Create Folder
+                        </button>
+                    </div>
                 </div>
             </div>
-        </div>
+        </teleport>
 
         <!-- Rename Modal -->
-        <div v-if="showRename" class="fixed inset-0 bg-[color:var(--ui-overlay)]/60 backdrop-blur-sm flex items-center justify-center z-50">
-            <div class="bg-[color:var(--ui-surface-strong)] rounded-2xl shadow-2xl w-96 p-6 border border-[color:var(--ui-border)]">
-                <h3 class="text-lg font-bold text-[color:var(--ui-fg)] mb-1 font-heading">Rename</h3>
-                <p class="text-sm text-[color:var(--ui-muted)] mb-4">Enter a new name for the item</p>
-                <input
-                    v-model="newFileName"
-                    @keyup.enter="confirmRename"
-                    type="text"
-                    class="w-full px-4 py-3 bg-white/70 dark:bg-black/20 border border-[color:var(--ui-border)] rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-transparent text-[color:var(--ui-fg)] placeholder-[color:var(--ui-muted-2)] mb-6"
-                    autofocus
-                />
-                <div class="flex justify-end space-x-3">
-                    <button
-                        @click="showRename = false"
-                        class="px-5 py-2.5 text-sm font-medium text-[color:var(--ui-muted)] hover:text-[color:var(--ui-fg)] hover:bg-[color:var(--ui-hover)] rounded-xl transition-colors"
-                    >
-                        Cancel
-                    </button>
-                    <button
-                        @click="confirmRename"
-                        :disabled="!newFileName.trim()"
-                        class="px-5 py-2.5 text-sm font-bold text-white bg-blue-600 hover:bg-blue-500 rounded-xl shadow-lg shadow-blue-600/20 transition-all disabled:opacity-50"
-                    >
-                        Save Changes
-                    </button>
-                </div>
-            </div>
-        </div>
-
-        <!-- Delete Confirmation Modal -->
-        <div v-if="showDelete" class="fixed inset-0 bg-[color:var(--ui-overlay)]/60 backdrop-blur-sm flex items-center justify-center z-50">
-            <div class="bg-[color:var(--ui-surface-strong)] rounded-2xl shadow-2xl w-96 p-6 border border-[color:var(--ui-border)]">
-                <div class="mb-4">
-                    <div class="w-12 h-12 rounded-full bg-amber-500/10 flex items-center justify-center mb-4">
-                        <svg class="w-6 h-6 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+        <teleport to="body">
+            <div v-if="showRename" class="fixed inset-0 bg-[color:var(--ui-overlay)]/60 backdrop-blur-sm flex items-center justify-center z-[100]">
+                <div class="bg-[color:var(--ui-surface-strong)] rounded-2xl shadow-2xl w-96 p-6 border border-[color:var(--ui-border)]">
+                    <h3 class="text-lg font-bold text-[color:var(--ui-fg)] mb-1 font-heading">Rename</h3>
+                    <p class="text-sm text-[color:var(--ui-muted)] mb-4">Enter a new name for the item</p>
+                    <input
+                        v-model="newFileName"
+                        @keyup.enter="confirmRename"
+                        type="text"
+                        class="w-full px-4 py-3 bg-white/70 dark:bg-black/20 border border-[color:var(--ui-border)] rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-transparent text-[color:var(--ui-fg)] placeholder-[color:var(--ui-muted-2)] mb-6"
+                        autofocus
+                    />
+                    <div class="flex justify-end space-x-3">
+                        <button
+                            @click="showRename = false"
+                            class="px-5 py-2.5 text-sm font-medium text-[color:var(--ui-muted)] hover:text-[color:var(--ui-fg)] hover:bg-[color:var(--ui-hover)] rounded-xl transition-colors"
+                        >
+                            Cancel
+                        </button>
+                        <button
+                            @click="confirmRename"
+                            :disabled="!newFileName.trim()"
+                            class="px-5 py-2.5 text-sm font-bold text-white bg-blue-600 hover:bg-blue-500 rounded-xl shadow-lg shadow-blue-600/20 transition-all disabled:opacity-50"
+                        >
+                            Save Changes
+                        </button>
                     </div>
-                    <h3 class="text-lg font-bold text-[color:var(--ui-fg)] font-heading">Move to Trash?</h3>
-                    <p class="text-sm text-[color:var(--ui-muted)] mt-2 leading-relaxed">
-                        "<span class="text-[color:var(--ui-fg)] font-medium">{{ deleteFile?.name }}</span>" will be moved to the trash. You can restore it later from the Trash sidebar.
-                    </p>
-                </div>
-                <div class="flex justify-end space-x-3 mt-6">
-                    <button
-                        @click="showDelete = false"
-                        class="px-5 py-2.5 text-sm font-medium text-[color:var(--ui-muted)] hover:text-[color:var(--ui-fg)] hover:bg-[color:var(--ui-hover)] rounded-xl transition-colors"
-                    >
-                        Cancel
-                    </button>
-                    <button
-                        @click="confirmDelete"
-                        class="px-5 py-2.5 text-sm font-bold text-white bg-amber-600 hover:bg-amber-500 rounded-xl shadow-lg shadow-amber-600/20 transition-all"
-                    >
-                        Move to Trash
-                    </button>
                 </div>
             </div>
-        </div>
+        </teleport>
 
         <!-- File Upload Component -->
         <FileUpload
@@ -895,6 +870,7 @@
             :show="showUpload"
             :current-path="currentPath"
             @close="showUpload = false"
+            @started="showUpload = true"
             @upload-complete="handleUploadComplete"
             @show-error="showError"
         />
@@ -991,7 +967,6 @@ function bytesToGb(bytes) {
 // Modal states
 const showCreateFolder = ref(false);
 const showRename = ref(false);
-const showDelete = ref(false);
 const showUpload = ref(false);
 const showShare = ref(false);
 const showPreview = ref(false);
@@ -1260,9 +1235,18 @@ const confirmRename = async () => {
     }
 };
 
-const showDeleteDialog = (file) => {
-    deleteFile.value = file;
-    showDelete.value = true;
+const showDeleteDialog = async (file) => {
+    const confirmed = await showConfirm({
+        type: 'warning',
+        title: 'Move to Trash?',
+        message: `"${file.name}" will be moved to the trash. You can restore it later from the Trash sidebar.`,
+        confirmText: 'Move to Trash'
+    });
+    
+    if (confirmed) {
+        deleteFile.value = file;
+        confirmDelete();
+    }
 };
 
 const confirmDelete = async () => {
@@ -1274,16 +1258,20 @@ const confirmDelete = async () => {
         });
         
         if (response.data.success) {
-            showDelete.value = false;
-            showSuccess(`"${deleteFile.value.name}" deleted`, 'Delete complete');
+            showSuccess(`"${deleteFile.value.name}" moved to trash`, 'Task complete');
             loadFiles(currentPath.value);
+            // Also refresh other views if they are active
+            if (activeView.value === 'recent') loadRecentFiles();
+            if (activeView.value === 'starred') loadStarredFiles();
         } else {
             showError(response.data.error, response.data.can_retry);
         }
     } catch (error) {
         console.error('Error deleting file:', error);
-        const errorMsg = error.response?.data?.error || 'Failed to delete file';
+        const errorMsg = error.response?.data?.error || 'Failed to move to trash';
         showError(errorMsg, error.response?.data?.can_retry);
+    } finally {
+        deleteFile.value = null;
     }
 };
 
@@ -1320,17 +1308,15 @@ const handleFileMove = async ({ source, targetPath }) => {
 };
 
 const showUploadDialog = () => {
-    showUpload.value = true;
+    if (uploadRef.value) {
+        uploadRef.value.triggerFileSelect();
+    }
 };
 
 const showFolderUploadDialog = () => {
-    showUpload.value = true;
-    // We need a small delay to ensure the modal is mounted/visible before triggering
-    setTimeout(() => {
-        if (uploadRef.value) {
-            uploadRef.value.triggerFolderSelect();
-        }
-    }, 100);
+    if (uploadRef.value) {
+        uploadRef.value.triggerFolderSelect();
+    }
 };
 
 const showShareDialog = (file) => {

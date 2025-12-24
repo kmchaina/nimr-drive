@@ -1,8 +1,13 @@
 <template>
     <div class="file-upload">
+        <!-- Hidden Inputs for programmatic triggering -->
+        <input ref="fileInput" type="file" multiple @change="handleFileSelect" class="hidden" />
+        <input ref="folderInput" type="file" webkitdirectory directory multiple @change="handleFolderSelect" class="hidden" />
+
         <!-- Upload Modal -->
-        <div v-if="showModal" class="fixed inset-0 bg-[color:var(--ui-overlay)]/60 backdrop-blur-md overflow-y-auto h-full w-full z-50 flex items-center justify-center transition-all duration-300">
-            <div class="relative mx-auto p-8 border border-[color:var(--ui-border)] w-full max-w-2xl shadow-2xl rounded-3xl bg-[color:var(--ui-surface-strong)] backdrop-blur-xl transform transition-all scale-100">
+        <teleport to="body">
+            <div v-if="showModal" class="fixed inset-0 bg-[color:var(--ui-overlay)]/60 backdrop-blur-md overflow-y-auto h-full w-full z-[100] flex items-center justify-center transition-all duration-300">
+                <div class="relative mx-auto p-8 border border-[color:var(--ui-border)] w-full max-w-2xl shadow-2xl rounded-3xl bg-[color:var(--ui-surface-strong)] backdrop-blur-xl transform transition-all scale-100">
                 <div class="mt-0">
                     <div class="flex items-center justify-between mb-6">
                         <div>
@@ -71,10 +76,7 @@
                         <p class="text-lg font-semibold text-[color:var(--ui-fg)] mb-2">Drop files or folders here</p>
                         <p class="text-sm text-[color:var(--ui-muted)] mb-4">Max 2GB per file</p>
                         
-                        <input ref="fileInput" type="file" multiple @change="handleFileSelect" class="hidden" />
-                        <input ref="folderInput" type="file" webkitdirectory directory multiple @change="handleFolderSelect" class="hidden" />
-                        
-                        <div class="flex justify-center gap-3">
+                        <div v-if="uploadQueue.length === 0" class="flex justify-center gap-3">
                             <button
                                 @click="$refs.fileInput.click()"
                                 :disabled="isUploading"
@@ -205,7 +207,7 @@
                     </div>
                 </div>
             </div>
-        </div>
+        </teleport>
 
         <!-- Confirm Modal -->
         <ConfirmModal
@@ -232,7 +234,7 @@ const props = defineProps({
     currentPath: { type: String, default: '' }
 });
 
-const emit = defineEmits(['close', 'upload-complete', 'show-error']);
+const emit = defineEmits(['close', 'upload-complete', 'show-error', 'started']);
 
 // Constants
 const MAX_FILE_SIZE = 2 * 1024 * 1024 * 1024; // 2GB
@@ -247,6 +249,7 @@ const uploadQueue = ref([]);
 const activeUploadCount = ref(0);
 const fileInput = ref(null);
 const folderInput = ref(null);
+const isProgrammatic = ref(false);
 
 // Modal state
 const confirmModalRef = ref(null);
@@ -349,7 +352,8 @@ const handleFileSelect = (e) => { addFilesToQueue(Array.from(e.target.files)); e
 const handleFolderSelect = (e) => { addFilesToQueue(Array.from(e.target.files), true); e.target.value = ''; };
 
 const addFilesToQueue = async (files, isFolder = false) => {
-    if (isFolder && files.length > 0) {
+    // Only show confirmation for folder uploads if not triggered programmatically from the "New" menu
+    if (isFolder && files.length > 0 && !isProgrammatic.value) {
         const folderName = files[0].webkitRelativePath?.split('/')[0] || 'this folder';
         const totalSize = files.reduce((sum, file) => sum + file.size, 0);
         
@@ -360,8 +364,18 @@ const addFilesToQueue = async (files, isFolder = false) => {
             confirmText: 'Start Upload'
         });
         
-        if (!confirmed) return;
+        if (!confirmed) {
+            isProgrammatic.value = false;
+            return;
+        }
     }
+    
+    isProgrammatic.value = false;
+    
+    if (files.length === 0) return;
+    
+    // Emit started event so Dashboard can show the modal
+    emit('started');
     
     const skipped = [];
     
@@ -510,12 +524,14 @@ const closeModal = () => {
 const generateUploadId = () => Date.now().toString(36) + Math.random().toString(36).substr(2);
 
 const triggerFolderSelect = () => {
+    isProgrammatic.value = true;
     if (folderInput.value) {
         folderInput.value.click();
     }
 };
 
 const triggerFileSelect = () => {
+    isProgrammatic.value = true;
     if (fileInput.value) {
         fileInput.value.click();
     }

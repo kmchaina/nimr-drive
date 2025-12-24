@@ -1,6 +1,7 @@
 <template>
-    <div v-if="show" class="fixed inset-0 bg-[color:var(--ui-overlay)]/60 backdrop-blur-sm flex items-center justify-center z-50">
-        <div class="bg-[color:var(--ui-surface-strong)] rounded-3xl shadow-2xl w-full max-w-lg p-8 border border-[color:var(--ui-border)] transform transition-all scale-100">
+    <teleport to="body">
+        <div v-if="show" class="fixed inset-0 bg-[color:var(--ui-overlay)]/60 backdrop-blur-sm flex items-center justify-center z-[100]">
+            <div class="bg-[color:var(--ui-surface-strong)] rounded-3xl shadow-2xl w-full max-w-lg p-8 border border-[color:var(--ui-border)] transform transition-all scale-100">
             <div class="flex justify-between items-start mb-6">
                 <div>
                     <h3 class="text-2xl font-bold text-[color:var(--ui-fg)] tracking-tight font-heading">Share item</h3>
@@ -155,8 +156,9 @@
                     Done
                 </button>
             </div>
+            </div>
         </div>
-    </div>
+    </teleport>
 </template>
 
 <script setup>
